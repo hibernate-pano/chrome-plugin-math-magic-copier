@@ -215,6 +215,31 @@ async function compressImage(base64Data) {
     img.onload = () => {
       let quality = 0.9; // 提高初始质量
       let maxSize = 4000; // 提高最大尺寸到接近4096
+
+      // 检查是否为 SVG 格式
+      const isSVG = base64Data.startsWith('data:image/svg+xml');
+      if (isSVG) {
+        // 对于 SVG，我们直接转换为高质量的 PNG
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 使用较大的尺寸以保持清晰度
+        canvas.width = Math.min(img.width * 2, 4000);
+        canvas.height = Math.min(img.height * 2, 4000);
+        
+        // 使用白色背景
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // 绘制 SVG
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // 转换为高质量 PNG
+        const pngData = canvas.toDataURL('image/png', 1.0);
+        resolve(pngData.split(',')[1]);
+        return;
+      }
+
       let compressedBase64;
 
       // 创建一个函数来尝试压缩
