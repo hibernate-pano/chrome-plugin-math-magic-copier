@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Math Formula to MathType",
+  "version": "1.0",
+  "description": "Capture math formulas and paste as MathType in Word",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardWrite",
+    "notifications",
+    "windows",
+    "system.display",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://aip.baidubce.com/*",
+    "<all_urls>",
+    "*://*/*"
+  ],
+  "action": {
+    "default_title": "Math Formula to MathType"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "js": [
+        "lib/html2canvas.min.js",
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/html2canvas.min.js",
+        "lib/mathjax/es5/tex-chtml.js",
+        "lib/mathjax/config.js",
+        "lib/mathjax/output/chtml/fonts/woff-v2/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

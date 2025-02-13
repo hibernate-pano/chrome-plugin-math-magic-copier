@@ -1,0 +1,7 @@
+.idea
+.DS_Store
+
+# MathJax files
+lib/mathjax/*
+!lib/mathjax/es5/tex-chtml.js
+!lib/mathjax/output/chtml/fonts/woff-v2/

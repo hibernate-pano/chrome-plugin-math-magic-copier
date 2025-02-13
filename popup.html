@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <!-- MathJax 配置和核心文件 -->
+  <script src="lib/mathjax/config.js"></script>
+  <script src="lib/mathjax/es5/tex-chtml.js" id="MathJax-script" async></script>
+  <style>
+    body {
+      width: 400px;
+      padding: 15px 15px 0 15px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-height: 600px;
+      overflow-y: auto;
+      margin: 0;
+    }
+
+    .button {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+
+    .button:hover {
+      background: #0056b3;
+    }
+
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .button.secondary {
+      background: #6c757d;
+    }
+
+    .button.secondary:hover {
+      background: #545b62;
+    }
+
+    .image-preview {
+      width: 100%;
+      min-height: 100px;
+      border: 2px dashed #ccc;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .image-preview.drag-over {
+      border-color: #007bff;
+      background: rgba(0, 123, 255, 0.1);
+    }
+
+    .image-preview img {
+      max-width: 100%;
+      max-height: 200px;
+      display: none;
+    }
+
+    .image-preview .placeholder {
+      color: #666;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .status {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      display: none;
+      position: fixed;
+      bottom: 15px;
+      left: 15px;
+      right: 15px;
+      z-index: 1000;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.info {
+      background: #cce5ff;
+      color: #004085;
+      border: 1px solid #b8daff;
+    }
+
+    .clear-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 24px;
+      height: 24px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.8);
+      border: none;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .clear-button:hover {
+      background: rgba(255, 255, 255, 1);
+    }
+
+    .image-preview:hover .clear-button {
+      display: flex;
+    }
+
+    /* 更新结果容器样式 */
+    .result-container {
+      margin-top: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      overflow: hidden;
+      max-height: 450px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .result-header {
+      background: #f8f9fa;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    /* 新增预览区域样式 */
+    .preview-container {
+      padding: 15px;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 80px;
+      overflow-x: auto;
+      max-width: 100%;
+      flex-shrink: 0;
+    }
+
+    .latex-container {
+      padding: 10px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #ddd;
+      overflow: auto;
+      max-height: 250px;
+    }
+
+    .latex-content {
+      font-family: monospace;
+      padding: 8px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    /* 更新按钮样式 */
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      background: #f8f9fa;
+      flex-shrink: 0;
+    }
+
+    .action-button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .copy-button {
+      background: #3498db;
+      color: white;
+    }
+
+    .copy-button:hover:not(:disabled) {
+      background: #2980b9;
+    }
+
+    /* 保留其他原有样式... */
+
+    /* MathJax 基础样式 */
+    .math {
+      font-family: 'Latin Modern Math', 'STIX Two Math', serif;
+      font-size: 16px;
+      line-height: 1.5;
+      padding: 8px;
+    }
+
+    .math sup, .math sub {
+      font-size: 80%;
+    }
+
+    .math .fraction {
+      display: inline-block;
+      vertical-align: middle;
+      text-align: center;
+    }
+
+    .math .numerator {
+      border-bottom: 1px solid;
+      padding: 0 2px;
+    }
+
+    .math .denominator {
+      padding: 0 2px;
+    }
+
+    /* 添加一个容器来包装所有内容 */
+    .container {
+      padding-bottom: 15px;
+      min-height: calc(100% - 15px);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <button id="startCapture" class="button">截取数学公式</button>
+
+    <div class="image-preview" id="imagePreview">
+      <div class="placeholder">
+        拖放图片到此处<br>或点击上传
+      </div>
+      <img id="previewImage" style="display: none;">
+      <button class="clear-button" id="clearImage" title="清除图片">×</button>
+    </div>
+
+    <input type="file" id="fileInput" class="file-input" accept="image/*" style="position: absolute; left: -9999px;">
+    <button id="analyzeImage" class="button secondary" disabled>分析公式</button>
+
+    <div id="status" class="status"></div>
+
+    <!-- 更新结果显示区域 -->
+    <div class="result-container" id="resultContainer" style="display: none;">
+      <div class="result-header">
+        <span>识别结果</span>
+      </div>
+      
+      <!-- 新增 LaTeX 预览区域 -->
+      <div class="preview-container" id="previewContainer">
+        <!-- MathJax 将在这里渲染公式 -->
+      </div>
+
+      <!-- LaTeX 源码显示区域 -->
+      <div class="latex-container">
+        <div class="latex-content" id="latexContent"></div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <button class="action-button copy-button" id="copyLatex">
+          <span class="button-icon">📋</span>复制 LaTeX
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>

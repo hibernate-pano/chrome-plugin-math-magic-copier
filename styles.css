@@ -1,0 +1,88 @@
+.math-magic-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 999999;
+  cursor: crosshair;
+}
+
+/* .math-magic-selection {
+  position: fixed;
+  border: 2px dashed #007bff;
+  background: rgba(0, 123, 255, 0.1);
+  pointer-events: none;
+  z-index: 1000000;
+} */
+
+.math-magic-selection {
+    position: fixed;
+    border: 2px dashed #007bff;
+    background: rgba(0, 123, 255, 0.1);
+    pointer-events: none;
+    z-index: 1000000;
+    box-sizing: border-box;
+    min-width: 1px;
+    min-height: 1px;
+  }
+
+.math-magic-toolbar {
+  position: fixed;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  z-index: 1000001;
+  pointer-events: auto !important;
+  user-select: none;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.math-magic-button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 60px;
+  pointer-events: auto !important;
+  transition: all 0.2s ease;
+}
+
+.math-magic-button.capture {
+  background-color: #007bff;
+}
+
+.math-magic-button.capture:hover {
+  background-color: #0056b3;
+}
+
+.math-magic-button.cancel {
+  background-color: #6c757d;
+}
+
+.math-magic-button.cancel:hover {
+  background-color: #545b62;
+}
+
+.math-magic-button:disabled {
+  background-color: #ccc !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* 确保选择框和工具栏在最上层 */
+.math-magic-selection,
+.math-magic-toolbar {
+  z-index: 1000000;
+}
+
+/* 确保工具栏在选择框上方 */
+.math-magic-toolbar {
+  z-index: 1000001;
+} 
