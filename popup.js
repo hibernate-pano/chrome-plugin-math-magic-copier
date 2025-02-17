@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function displayResult(latex) {
   const resultContainer = document.getElementById("resultContainer");
-  const previewContainer = document.getElementById("previewContainer");
   const latexContent = document.getElementById("latexContent");
 
   // 显示结果容器
@@ -40,50 +39,6 @@ function displayResult(latex) {
 
   // 设置 LaTeX 源码
   latexContent.textContent = cleanLatex;
-
-  try {
-    // 设置预览内容并触发 MathJax 渲染
-    previewContainer.innerHTML = cleanLatex.includes("\\begin{")
-      ? `$$${cleanLatex}$$`
-      : `$$\\displaystyle ${cleanLatex}$$`;
-
-    // 确保 MathJax 已加载
-    if (window.MathJax && window.MathJax.typesetPromise) {
-      MathJax.typesetPromise([previewContainer]).catch((err) => {
-        console.error("MathJax 渲染错误:", err);
-        console.log("渲染失败的 LaTeX:", cleanLatex); // 添加调试信息
-        previewContainer.innerHTML =
-          '<span style="color: #dc3545;">公式渲染失败</span>';
-      });
-    } else {
-      // MathJax 未加载完成时的处理
-      const checkMathJax = setInterval(() => {
-        if (window.MathJax && window.MathJax.typesetPromise) {
-          clearInterval(checkMathJax);
-          MathJax.typesetPromise([previewContainer]).catch((err) => {
-            console.error("MathJax 渲染错误:", err);
-            console.log("渲染失败的 LaTeX:", cleanLatex); // 添加调试信息
-            previewContainer.innerHTML =
-              '<span style="color: #dc3545;">公式渲染失败</span>';
-          });
-        }
-      }, 100);
-
-      // 设置超时，防止无限等待
-      setTimeout(() => {
-        clearInterval(checkMathJax);
-        if (!window.MathJax || !window.MathJax.typesetPromise) {
-          previewContainer.innerHTML =
-            '<span style="color: #dc3545;">MathJax 加载失败</span>';
-        }
-      }, 5000);
-    }
-  } catch (error) {
-    console.error("渲染错误:", error);
-    console.log("出错的 LaTeX:", cleanLatex); // 添加调试信息
-    previewContainer.innerHTML =
-      '<span style="color: #dc3545;">渲染失败</span>';
-  }
 }
 
 function handleAnalysisResult(result) {
