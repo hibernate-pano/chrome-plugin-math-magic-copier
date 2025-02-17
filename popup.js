@@ -1,3 +1,26 @@
+document.addEventListener('DOMContentLoaded', async () => {
+  // 检查URL中是否有错误信息
+  const urlParams = new URLSearchParams(window.location.search);
+  const error = urlParams.get('error');
+  if (error) {
+    showStatus(decodeURIComponent(error));
+    return;
+  }
+
+  // 检查是否有上一次的截图数据
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_LAST_CAPTURE' });
+    if (response && response.imageData) {
+      // 显示图片
+      currentImageData = response.imageData;
+      showPreviewImage(`data:image/jpeg;base64,${response.imageData}`);
+      enableAnalyzeButton();
+    }
+  } catch (error) {
+    console.error('获取截图数据失败:', error);
+  }
+});
+
 function displayResult(latex) {
   const resultContainer = document.getElementById("resultContainer");
   const previewContainer = document.getElementById("previewContainer");
@@ -288,5 +311,36 @@ document.getElementById("copyLatex").addEventListener("click", async () => {
     } catch (backgroundErr) {
       showStatus("复制失败，请手动复制", "error");
     }
+  }
+});
+
+// 添加截图按钮事件监听
+startCapture.addEventListener("click", async () => {
+  try {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({ 
+      active: true, 
+      currentWindow: true 
+    });
+    
+    if (!tab) {
+      showStatus("无法获取当前标签页");
+      return;
+    }
+
+    // 注入内容脚本
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['content.js']
+    });
+
+    // 发送消息给内容脚本开始截图
+    await chrome.tabs.sendMessage(tab.id, { type: "START_CAPTURE" });
+
+    // 关闭popup窗口
+    window.close();
+  } catch (error) {
+    console.error("启动截图失败:", error);
+    showStatus("启动截图失败: " + error.message);
   }
 });

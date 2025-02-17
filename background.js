@@ -1,3 +1,7 @@
+// 存储最后一次截图的数据
+let lastCapturedImage = null;
+let popupWindowId = null;  // 添加popup窗口ID存储
+
 // 处理来自popup的消息
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
   console.log('Background script received message:', message.type);
@@ -53,24 +57,34 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
   }
 
   if (message.type === 'CAPTURE_COMPLETE') {
-    // 立即发送一个确认响应
-    sendResponse({ status: 'processing' });
+    console.log('收到截图数据');
+    if (message.error) {
+      // 处理错误情况
+      console.error('截图失败:', message.error);
+      showErrorNotification(message.error);
+    } else {
+      // 保存截图数据
+      lastCapturedImage = message.imageData;
+      // 重新打开或更新popup
+      reopenPopup();
+    }
+    sendResponse({ status: 'success' });
+    return true;
+  }
 
-    // 异步处理图片
-    processImage(message.imageData, sender.tab.id)
-      .then(() => {
-        console.log('Image processing completed successfully');
-      })
-      .catch(error => {
-        console.error('Image processing failed:', error);
-        // 显示错误通知
-        chrome.notifications.create({
-          type: 'basic',
-          iconUrl: 'icon.png',
-          title: '处理失败',
-          message: error.message || '图片处理失败，请重试'
-        });
-      });
+  if (message.type === 'REOPEN_POPUP') {
+    reopenPopup();
+    return true;
+  }
+
+  if (message.type === 'REOPEN_POPUP_WITH_ERROR') {
+    openPopupWithError(message.error);
+    return true;
+  }
+
+  if (message.type === 'GET_LAST_CAPTURE') {
+    sendResponse({ imageData: lastCapturedImage });
+    return true;
   }
 
   if (message.type === 'CONVERT_TO_MATHTYPE') {
@@ -99,6 +113,26 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         console.error('复制失败:', error);
         sendResponse({ success: false, error: error.message });
       });
+    return true;  // 保持消息通道开放
+  }
+
+  if (message.type === 'START_CAPTURE') {
+    // 向content script发送消息
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'START_CAPTURE' })
+          .then(response => {
+            console.log('Content script response:', response);
+            sendResponse(response);
+          })
+          .catch(error => {
+            console.error('Error sending message to content script:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+      } else {
+        sendResponse({ success: false, error: '无法获取当前标签页' });
+      }
+    });
     return true;  // 保持消息通道开放
   }
 
@@ -392,4 +426,80 @@ chrome.action.onClicked.addListener(async (tab) => {
       top: top
     });
   }
+});
+
+// 打开popup并显示图片
+async function openPopupWithImage() {
+  try {
+    // 获取当前窗口信息
+    const currentWindow = await chrome.windows.getCurrent();
+    
+    // 计算新窗口位置
+    const left = currentWindow.left + 50;
+    const top = currentWindow.top + 50;
+
+    // 创建新的popup窗口
+    chrome.windows.create({
+      url: 'popup.html',
+      type: 'popup',
+      width: 400,
+      height: 600,
+      left: left,
+      top: top
+    });
+  } catch (error) {
+    console.error('打开popup失败:', error);
+  }
+}
+
+// 打开popup并显示错误信息
+async function openPopupWithError(errorMessage) {
+  try {
+    const currentWindow = await chrome.windows.getCurrent();
+    const left = currentWindow.left + 50;
+    const top = currentWindow.top + 50;
+
+    chrome.windows.create({
+      url: `popup.html?error=${encodeURIComponent(errorMessage)}`,
+      type: 'popup',
+      width: 400,
+      height: 600,
+      left: left,
+      top: top
+    });
+  } catch (error) {
+    console.error('打开popup失败:', error);
+  }
+}
+
+// 显示错误通知
+function showErrorNotification(error) {
+  chrome.notifications.create({
+    type: 'basic',
+    iconUrl: 'images/icon48.png',
+    title: '截图失败',
+    message: error
+  });
+}
+
+// 重新打开或更新popup
+async function reopenPopup() {
+  try {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      throw new Error('无法获取当前标签页');
+    }
+
+    // 使用 action.openPopup 打开原生 popup
+    await chrome.action.openPopup();
+  } catch (error) {
+    console.error('打开popup失败:', error);
+    showErrorNotification('无法打开预览窗口');
+  }
+}
+
+// 监听窗口关闭事件
+chrome.windows.onRemoved.addListener((windowId) => {
+  // 不再需要处理窗口ID
 });

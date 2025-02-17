@@ -1,13 +1,15 @@
-let isCapturing = false;
 let overlay = null;
 let selection = null;
 let toolbar = null;
 let startX = 0;
 let startY = 0;
 let isDrawing = false;
-
-// 全局变量，用于存储最后的选区信息
 let lastSelectionRect = null;
+
+// 确保只声明一次
+if (typeof window.isCapturing === 'undefined') {
+  window.isCapturing = false;
+}
 
 // 创建选择框
 function createSelection() {
@@ -114,7 +116,7 @@ function createToolbar() {
 
       // 恢复页面选中
       document.body.style.userSelect = '';
-      isCapturing = false;
+      window.isCapturing = false;
       isDrawing = false;
       console.log('【DEBUG】Cleanup completed');
     }
@@ -324,7 +326,7 @@ async function captureArea(selectionRect) {
     loadingOverlay.style.display = 'flex';
     loadingOverlay.style.alignItems = 'center';
     loadingOverlay.style.justifyContent = 'center';
-    loadingOverlay.style.color = 'white';
+    loadingOverlay.style.color = '#000000';
     loadingOverlay.style.fontSize = '20px';
     document.body.appendChild(loadingOverlay);
 
@@ -345,17 +347,67 @@ async function captureArea(selectionRect) {
 
     const { width, height, left, top } = selectionRect;
 
-    // 直接截取整个窗口
-    const canvas = await html2canvas(document.documentElement, {
-      logging: true,
+    // 创建临时克隆区域
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.backgroundColor = '#ffffff';
+    document.body.appendChild(tempContainer);
+
+    // 克隆选中区域的内容
+    const targetElement = document.elementFromPoint(left + width/2, top + height/2);
+    if (!targetElement) {
+      throw new Error('无法找到目标元素');
+    }
+
+    const clonedElement = targetElement.cloneNode(true);
+    
+    // 设置所有元素为黑白模式
+    const setBlackAndWhite = (element) => {
+      const allElements = element.getElementsByTagName('*');
+      for (const el of [...allElements, element]) {
+        // 移除所有颜色相关样式
+        el.style.color = '#000000';
+        el.style.backgroundColor = 'transparent';
+        el.style.borderColor = '#000000';
+        el.style.boxShadow = 'none';
+        el.style.textShadow = 'none';
+        
+        // 移除所有背景
+        el.style.background = 'none';
+        el.style.backgroundImage = 'none';
+        
+        // 移除所有动画和变换
+        el.style.transform = 'none';
+        el.style.transition = 'none';
+        el.style.animation = 'none';
+        
+        // 移除所有渐变
+        el.style.webkitBackgroundClip = 'none';
+        el.style.backgroundClip = 'none';
+        el.style.webkitTextFillColor = '#000000';
+        
+        // 确保文本可见
+        el.style.opacity = '1';
+        el.style.visibility = 'visible';
+      }
+    };
+
+    setBlackAndWhite(clonedElement);
+    tempContainer.appendChild(clonedElement);
+
+    // 截图配置
+    const options = {
+      logging: false,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: 'white',
+      backgroundColor: '#ffffff',
       scale: 2,
-      x: window.scrollX + left,
-      y: window.scrollY + top,
       width: width,
       height: height,
+      x: window.scrollX + left,
+      y: window.scrollY + top,
       scrollX: -window.scrollX - left,
       scrollY: -window.scrollY - top,
       windowWidth: document.documentElement.scrollWidth,
@@ -363,37 +415,36 @@ async function captureArea(selectionRect) {
       foreignObjectRendering: false,
       removeContainer: true,
       ignoreElements: (element) => {
-        // 忽略所有图片、iframe、视频等外部资源
-        const tagName = element.tagName.toLowerCase();
-        if (['img', 'iframe', 'video', 'embed', 'object', 'picture'].includes(tagName)) {
-          return true;
-        }
-        // 忽略所有背景图片
-        const style = window.getComputedStyle(element);
-        return style.backgroundImage !== 'none';
+        // 忽略所有图片和多媒体元素
+        return ['IMG', 'VIDEO', 'IFRAME', 'CANVAS'].includes(element.tagName);
       },
-      onclone: function (clonedDoc) {
-        console.log('Document cloned successfully');
-        // 移除所有我们的UI元素和外部资源
+      onclone: function(clonedDoc) {
+        // 移除UI元素
         const elements = clonedDoc.querySelectorAll(
-          '.math-magic-toolbar, .math-magic-overlay, .math-magic-selection, ' +
-          'img, iframe, video, embed, object, picture'
+          '.math-magic-toolbar, .math-magic-overlay, .math-magic-selection'
         );
         elements.forEach(el => el.remove());
-
-        // 移除所有背景图片
-        const allElements = clonedDoc.getElementsByTagName('*');
-        for (let element of allElements) {
-          element.style.backgroundImage = 'none';
-        }
+        
+        // 对克隆的文档也应用黑白模式
+        setBlackAndWhite(clonedDoc.documentElement);
       }
-    });
+    };
+
+    // 执行截图
+    updateLoadingText('正在截图...');
+    const canvas = await html2canvas(document.documentElement, options);
+
+    // 清理临时容器
+    tempContainer.remove();
 
     console.log('html2canvas completed');
     updateLoadingText('正在压缩图片...');
 
-    // 转换为base64图片数据
-    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    // 转换为base64图片数据，使用黑白模式
+    const imageData = canvas.toDataURL('image/jpeg', {
+      quality: 0.95,
+      colorSpace: 'srgb'
+    });
     console.log('Image captured, size:', imageData.length);
 
     // 压缩图片
@@ -406,11 +457,15 @@ async function captureArea(selectionRect) {
       imageData: compressedImage
     });
 
-    // 不再自动发送到后台进行分析
     return true;
 
   } catch (error) {
     console.error('截图失败:', error);
+    // 发送错误消息
+    chrome.runtime.sendMessage({ 
+      type: 'CAPTURE_COMPLETE',
+      error: error.message 
+    });
     throw error;
   } finally {
     // 清理加载遮罩
@@ -423,8 +478,13 @@ async function captureArea(selectionRect) {
 // 开始捕获模式
 function startCapture() {
   console.log('Starting capture mode...');
-
-  isCapturing = true;
+  
+  if (window.isCapturing) {
+    console.log('Already in capture mode');
+    return;
+  }
+  
+  window.isCapturing = true;
   isDrawing = false;
 
   // 创建必要的元素
@@ -457,7 +517,7 @@ function startCapture() {
 function endCapture() {
   console.log('Ending capture mode...');
 
-  isCapturing = false;
+  window.isCapturing = false;
   isDrawing = false;
 
   // 移除事件监听器
@@ -490,11 +550,11 @@ function handleMouseDown(e) {
   console.log('【DEBUG】Mouse down event:', {
     target: e.target.tagName,
     isToolbarButton: e.target.classList.contains('math-magic-button'),
-    isCapturing,
+    isCapturing: window.isCapturing,
     isDrawing
   });
 
-  if (!isCapturing) return;
+  if (!window.isCapturing) return;
 
   // 如果点击的是工具栏按钮，不处理
   if (e.target.classList.contains('math-magic-button')) {
@@ -524,7 +584,7 @@ function handleMouseDown(e) {
 }
 
 function handleMouseMove(e) {
-  if (!isCapturing || !isDrawing) return;
+  if (!window.isCapturing || !isDrawing) return;
 
   // 防止事件冒泡和默认行为
   e.preventDefault();
@@ -539,7 +599,7 @@ function handleMouseUp(e) {
     target: e.target.tagName,
     isToolbarButton: e.target.classList.contains('math-magic-button'),
     isDrawing,
-    isCapturing
+    isCapturing: window.isCapturing
   });
 
   if (!isDrawing) {
@@ -609,11 +669,14 @@ function handleMouseUp(e) {
   e.stopPropagation();
 }
 
-// 监听来自popup的消息
+// 添加消息监听
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'START_CAPTURE') {
+  console.log("Content script received message:", message);
+  
+  if (message.type === "START_CAPTURE") {
+    console.log("开始截图模式");
     startCapture();
     sendResponse({ success: true });
   }
-  return true;
+  return true;  // 保持消息通道开放
 });
