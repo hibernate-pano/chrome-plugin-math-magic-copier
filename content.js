@@ -676,42 +676,59 @@ function createAnalysisLoading() {
   const container = document.createElement('div');
   container.className = 'math-magic-result-container';
   container.style.position = 'fixed';
-  container.style.right = '20px';
-  container.style.top = '20px';
-  container.style.width = '320px';
+  container.style.right = '24px';
+  container.style.top = '24px';
+  container.style.width = '360px';
   container.style.background = '#ffffff';
-  container.style.borderRadius = '8px';
-  container.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+  container.style.borderRadius = '12px';
+  container.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.12)';
   container.style.zIndex = '2100000';
   container.style.overflow = 'hidden';
-  container.style.transition = 'all 0.3s ease';
+  container.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
   container.style.opacity = '0';
-  container.style.transform = 'translateY(-20px)';
+  container.style.transform = 'translateY(-20px) scale(0.98)';
+  container.style.backdropFilter = 'blur(8px)';
+  container.style.webkitBackdropFilter = 'blur(8px)';
 
   // 创建头部
   const header = document.createElement('div');
-  header.style.padding = '12px 16px';
-  header.style.borderBottom = '1px solid #eee';
+  header.style.padding = '16px 20px';
+  header.style.borderBottom = '1px solid rgba(0, 0, 0, 0.08)';
   header.style.display = 'flex';
   header.style.alignItems = 'center';
   header.style.justifyContent = 'space-between';
-  header.style.background = '#f8f9fa';
+  header.style.background = 'rgba(255, 255, 255, 0.98)';
 
   const title = document.createElement('div');
-  title.textContent = '公式分析';
-  title.style.fontSize = '14px';
-  title.style.fontWeight = 'bold';
-  title.style.color = '#1a73e8';
+  title.textContent = '识别结果';
+  title.style.fontSize = '15px';
+  title.style.fontWeight = '600';
+  title.style.color = '#1f2937';
+  title.style.letterSpacing = '0.3px';
 
   const closeBtn = document.createElement('button');
   closeBtn.innerHTML = '&times;';
   closeBtn.style.background = 'none';
   closeBtn.style.border = 'none';
-  closeBtn.style.fontSize = '20px';
-  closeBtn.style.color = '#666';
+  closeBtn.style.fontSize = '24px';
+  closeBtn.style.color = '#6b7280';
   closeBtn.style.cursor = 'pointer';
   closeBtn.style.padding = '0 4px';
-  closeBtn.onclick = () => container.remove();
+  closeBtn.style.lineHeight = '1';
+  closeBtn.style.transition = 'all 0.2s ease';
+  closeBtn.onmouseover = () => {
+    closeBtn.style.color = '#000000';
+    closeBtn.style.transform = 'scale(1.1)';
+  };
+  closeBtn.onmouseout = () => {
+    closeBtn.style.color = '#6b7280';
+    closeBtn.style.transform = 'scale(1)';
+  };
+  closeBtn.onclick = () => {
+    container.style.opacity = '0';
+    container.style.transform = 'translateY(-20px) scale(0.98)';
+    setTimeout(() => container.remove(), 300);
+  };
 
   header.appendChild(title);
   header.appendChild(closeBtn);
@@ -719,7 +736,7 @@ function createAnalysisLoading() {
   // 创建内容区
   const content = document.createElement('div');
   content.className = 'math-magic-result-content';
-  content.style.padding = '16px';
+  content.style.padding = '20px';
 
   // 创建加载动画
   const loadingWrapper = document.createElement('div');
@@ -727,22 +744,23 @@ function createAnalysisLoading() {
   loadingWrapper.style.display = 'flex';
   loadingWrapper.style.flexDirection = 'column';
   loadingWrapper.style.alignItems = 'center';
-  loadingWrapper.style.gap = '12px';
-  loadingWrapper.style.padding = '20px 0';
+  loadingWrapper.style.gap = '16px';
+  loadingWrapper.style.padding = '32px 0';
 
   const spinner = document.createElement('div');
   spinner.className = 'math-magic-spinner';
-  spinner.style.width = '32px';
-  spinner.style.height = '32px';
-  spinner.style.border = '3px solid #f3f3f3';
-  spinner.style.borderTop = '3px solid #1a73e8';
+  spinner.style.width = '36px';
+  spinner.style.height = '36px';
+  spinner.style.border = '3px solid #f0f0f0';
+  spinner.style.borderTop = '3px solid #3b82f6';
   spinner.style.borderRadius = '50%';
-  spinner.style.animation = 'math-magic-spin 1s linear infinite';
+  spinner.style.animation = 'math-magic-spin 0.8s linear infinite';
 
   const loadingText = document.createElement('div');
-  loadingText.textContent = '正在分析公式...';
+  loadingText.textContent = '正在识别公式...';
   loadingText.style.fontSize = '14px';
-  loadingText.style.color = '#666';
+  loadingText.style.color = '#6b7280';
+  loadingText.style.fontWeight = '500';
 
   // 添加动画关键帧
   if (!document.querySelector('#math-magic-animations')) {
@@ -768,7 +786,7 @@ function createAnalysisLoading() {
   document.body.appendChild(container);
   requestAnimationFrame(() => {
     container.style.opacity = '1';
-    container.style.transform = 'translateY(0)';
+    container.style.transform = 'translateY(0) scale(1)';
   });
 
   return container;
@@ -785,7 +803,7 @@ function updateAnalysisResult(container, result) {
   resultWrapper.style.width = '100%';
   resultWrapper.style.opacity = '0';
   resultWrapper.style.transform = 'translateY(10px)';
-  resultWrapper.style.transition = 'all 0.3s ease';
+  resultWrapper.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
   
   // 解析结果 JSON
   try {
@@ -793,63 +811,69 @@ function updateAnalysisResult(container, result) {
     
     // 创建 LaTeX 显示区域
     const latexContainer = document.createElement('div');
-    latexContainer.style.padding = '12px';
-    latexContainer.style.background = '#f8f9fa';
-    latexContainer.style.borderRadius = '6px';
-    latexContainer.style.fontFamily = 'Consolas, Monaco, "Courier New", monospace';
-    latexContainer.style.fontSize = '14px';
-    latexContainer.style.lineHeight = '1.5';
-    latexContainer.style.color = '#333';
-    latexContainer.style.border = '1px solid #e9ecef';
+    latexContainer.style.padding = '16px';
+    latexContainer.style.background = '#f8fafc';
+    latexContainer.style.borderRadius = '8px';
+    latexContainer.style.fontFamily = 'JetBrains Mono, Consolas, Monaco, monospace';
+    latexContainer.style.fontSize = '13px';
+    latexContainer.style.lineHeight = '1.6';
+    latexContainer.style.color = '#334155';
+    latexContainer.style.border = '1px solid #e2e8f0';
     latexContainer.style.wordBreak = 'break-all';
-    latexContainer.style.marginBottom = '12px';
-    latexContainer.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.05)';
+    latexContainer.style.marginBottom = '16px';
+    latexContainer.style.boxShadow = 'inset 0 1px 2px rgba(0, 0, 0, 0.03)';
+    latexContainer.style.whiteSpace = 'pre-wrap';
     latexContainer.textContent = resultData.latex || '';
 
     // 创建复制按钮
     const copyButton = document.createElement('button');
-    copyButton.textContent = '复制 LaTeX';
+    copyButton.textContent = '复制 LaTeX 代码';
     copyButton.style.width = '100%';
-    copyButton.style.background = '#1a73e8';
+    copyButton.style.background = '#3b82f6';
     copyButton.style.color = '#ffffff';
     copyButton.style.border = 'none';
-    copyButton.style.borderRadius = '6px';
-    copyButton.style.padding = '10px 16px';
+    copyButton.style.borderRadius = '8px';
+    copyButton.style.padding = '12px 24px';
     copyButton.style.cursor = 'pointer';
     copyButton.style.fontSize = '14px';
     copyButton.style.fontWeight = '500';
-    copyButton.style.transition = 'all 0.2s ease';
-    copyButton.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+    copyButton.style.transition = 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+    copyButton.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+    copyButton.style.position = 'relative';
+    copyButton.style.overflow = 'hidden';
 
     // 添加按钮悬停效果
     copyButton.onmouseover = () => {
-      copyButton.style.background = '#1557b0';
-      copyButton.style.boxShadow = '0 2px 4px rgba(0,0,0,0.15)';
+      copyButton.style.background = '#2563eb';
+      copyButton.style.transform = 'translateY(-1px)';
+      copyButton.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
     };
     copyButton.onmouseout = () => {
-      copyButton.style.background = '#1a73e8';
-      copyButton.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+      copyButton.style.background = '#3b82f6';
+      copyButton.style.transform = 'translateY(0)';
+      copyButton.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
     };
     
     // 添加复制功能
     copyButton.onclick = async () => {
       try {
         await navigator.clipboard.writeText(resultData.latex || '');
-        copyButton.textContent = '已复制！';
-        copyButton.style.background = '#34a853';
+        const originalText = copyButton.textContent;
+        copyButton.style.background = '#059669';
+        copyButton.textContent = '复制成功 ✓';
         copyButton.style.pointerEvents = 'none';
         setTimeout(() => {
-          copyButton.textContent = '复制 LaTeX';
-          copyButton.style.background = '#1a73e8';
+          copyButton.textContent = originalText;
+          copyButton.style.background = '#3b82f6';
           copyButton.style.pointerEvents = 'auto';
         }, 2000);
       } catch (err) {
         console.error('复制失败:', err);
+        copyButton.style.background = '#dc2626';
         copyButton.textContent = '复制失败';
-        copyButton.style.background = '#ea4335';
         setTimeout(() => {
-          copyButton.textContent = '复制 LaTeX';
-          copyButton.style.background = '#1a73e8';
+          copyButton.textContent = '复制 LaTeX 代码';
+          copyButton.style.background = '#3b82f6';
         }, 2000);
       }
     };
@@ -862,7 +886,7 @@ function updateAnalysisResult(container, result) {
   }
   
   // 替换加载动画
-  loadingWrapper.style.transition = 'all 0.3s ease';
+  loadingWrapper.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
   loadingWrapper.style.opacity = '0';
   loadingWrapper.style.transform = 'translateY(-10px)';
   
