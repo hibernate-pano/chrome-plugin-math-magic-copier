@@ -3,6 +3,11 @@
   "name": "Math Formula to MathType",
   "version": "1.0",
   "description": "Capture math formulas and paste as MathType in Word",
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
   "permissions": [
     "activeTab",
     "scripting",
@@ -20,7 +25,12 @@
     "*://*/*"
   ],
   "action": {
-    "default_title": "Math Formula to MathType"
+    "default_title": "Math Formula to MathType",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
   },
   "content_scripts": [
     {
