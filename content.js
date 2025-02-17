@@ -1,10 +1,11 @@
-let overlay = null;
-let selection = null;
-let toolbar = null;
-let startX = 0;
-let startY = 0;
-let isDrawing = false;
-let lastSelectionRect = null;
+// 全局变量声明
+let overlay = null,
+    selection = null,
+    toolbar = null,
+    startX = 0,
+    startY = 0,
+    isDrawing = false,
+    lastSelectionRect = null;
 
 // 确保只声明一次
 if (typeof window.isCapturing === 'undefined') {
@@ -15,6 +16,16 @@ if (typeof window.isCapturing === 'undefined') {
 function createSelection() {
   selection = document.createElement('div');
   selection.className = 'math-magic-selection';
+  
+  // 设置选择框样式
+  selection.style.position = 'fixed';
+  selection.style.border = '2px solid #1a73e8';
+  selection.style.backgroundColor = 'rgba(26, 115, 232, 0.1)';
+  selection.style.zIndex = '999999';
+  selection.style.pointerEvents = 'none';
+  selection.style.display = 'none';
+  selection.style.boxSizing = 'border-box';
+  
   document.body.appendChild(selection);
 }
 
@@ -150,6 +161,16 @@ function createToolbar() {
 function createOverlay() {
   overlay = document.createElement('div');
   overlay.className = 'math-magic-overlay';
+  
+  // 设置遮罩层样式
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
+  overlay.style.background = 'rgba(0, 0, 0, 0.1)';  // 改为半透明
+  overlay.style.zIndex = '999998';  // 确保在其他元素之上
+  overlay.style.pointerEvents = 'auto';  // 允许点击事件
 
   // 添加点击事件处理，如果点击的是工具栏则不处理
   overlay.addEventListener('mousedown', (e) => {
@@ -311,147 +332,126 @@ async function compressImage(base64Data) {
 
 // 捕获选中区域
 async function captureArea(selectionRect) {
-  let loadingOverlay = null;
+  let loadingUI = null;
+  let tempContainer = null;
 
   try {
-    // 显示加载遮罩
-    loadingOverlay = document.createElement('div');
-    loadingOverlay.style.position = 'fixed';
-    loadingOverlay.style.top = '0';
-    loadingOverlay.style.left = '0';
-    loadingOverlay.style.width = '100%';
-    loadingOverlay.style.height = '100%';
-    loadingOverlay.style.background = 'rgba(0, 0, 0, 0.5)';
-    loadingOverlay.style.zIndex = '999999';
-    loadingOverlay.style.display = 'flex';
-    loadingOverlay.style.alignItems = 'center';
-    loadingOverlay.style.justifyContent = 'center';
-    loadingOverlay.style.color = '#000000';
-    loadingOverlay.style.fontSize = '20px';
-    document.body.appendChild(loadingOverlay);
-
-    const updateLoadingText = (text) => {
-      if (loadingOverlay) {
-        loadingOverlay.textContent = text;
-      }
-    };
-
-    updateLoadingText('正在准备截图...');
-    console.log('Starting capture area with rect:', selectionRect);
-
-    // 检查html2canvas
-    if (typeof html2canvas === 'undefined') {
-      console.error('html2canvas is not loaded');
-      throw new Error('截图组件未加载，请刷新页面重试');
-    }
-
     const { width, height, left, top } = selectionRect;
-
-    // 创建临时克隆区域
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.top = '-9999px';
+    
+    // 临时隐藏遮罩层和工具栏
+    if (overlay) overlay.style.display = 'none';
+    if (toolbar) toolbar.style.display = 'none';
+    if (selection) selection.style.display = 'none';
+    
+    // 创建临时容器
+    tempContainer = document.createElement('div');
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.left = `${left}px`;
+    tempContainer.style.top = `${top}px`;
+    tempContainer.style.width = `${width}px`;
+    tempContainer.style.height = `${height}px`;
     tempContainer.style.backgroundColor = '#ffffff';
-    document.body.appendChild(tempContainer);
-
-    // 克隆选中区域的内容
-    const targetElement = document.elementFromPoint(left + width/2, top + height/2);
+    tempContainer.style.zIndex = '-1';
+    
+    // 获取选区中心的元素
+    const centerX = left + width / 2;
+    const centerY = top + height / 2;
+    const targetElement = document.elementFromPoint(centerX, centerY);
+    
     if (!targetElement) {
       throw new Error('无法找到目标元素');
     }
 
-    const clonedElement = targetElement.cloneNode(true);
-    
-    // 设置所有元素为黑白模式
-    const setBlackAndWhite = (element) => {
-      const allElements = element.getElementsByTagName('*');
-      for (const el of [...allElements, element]) {
-        // 移除所有颜色相关样式
-        el.style.color = '#000000';
-        el.style.backgroundColor = 'transparent';
-        el.style.borderColor = '#000000';
-        el.style.boxShadow = 'none';
-        el.style.textShadow = 'none';
-        
-        // 移除所有背景
-        el.style.background = 'none';
-        el.style.backgroundImage = 'none';
-        
-        // 移除所有动画和变换
-        el.style.transform = 'none';
-        el.style.transition = 'none';
-        el.style.animation = 'none';
-        
-        // 移除所有渐变
-        el.style.webkitBackgroundClip = 'none';
-        el.style.backgroundClip = 'none';
-        el.style.webkitTextFillColor = '#000000';
-        
-        // 确保文本可见
-        el.style.opacity = '1';
-        el.style.visibility = 'visible';
+    // 向上查找数学公式容器
+    let mathContainer = targetElement;
+    while (mathContainer && 
+           !mathContainer.classList.contains('katex') && 
+           !mathContainer.classList.contains('MathJax') &&
+           !mathContainer.querySelector('.katex, .MathJax')) {
+      mathContainer = mathContainer.parentElement;
+      if (mathContainer === document.body) {
+        mathContainer = targetElement;
+        break;
       }
-    };
+    }
 
-    setBlackAndWhite(clonedElement);
-    tempContainer.appendChild(clonedElement);
+    // 克隆数学公式容器
+    const clonedContent = mathContainer.cloneNode(true);
+    
+    // 获取原始元素的位置和样式
+    const originalRect = mathContainer.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(mathContainer);
+    
+    // 设置克隆元素的样式
+    clonedContent.style.position = 'absolute';
+    clonedContent.style.left = `${originalRect.left - left}px`;
+    clonedContent.style.top = `${originalRect.top - top}px`;
+    clonedContent.style.width = `${originalRect.width}px`;
+    clonedContent.style.height = `${originalRect.height}px`;
+    clonedContent.style.margin = '0';
+    clonedContent.style.padding = computedStyle.padding;
+    clonedContent.style.display = computedStyle.display;
+    clonedContent.style.transform = 'none';
+    clonedContent.style.backgroundColor = '#ffffff';
+    
+    // 处理所有数学公式元素
+    const mathElements = clonedContent.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
+    mathElements.forEach(el => {
+      el.style.display = 'inline-block';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.style.position = 'static';
+      el.style.transform = 'none';
+    });
+    
+    tempContainer.appendChild(clonedContent);
+    document.body.appendChild(tempContainer);
 
-    // 截图配置
+    // 创建加载UI
+    loadingUI = document.createElement('div');
+    loadingUI.style.position = 'fixed';
+    loadingUI.style.top = '50%';
+    loadingUI.style.left = '50%';
+    loadingUI.style.transform = 'translate(-50%, -50%)';
+    loadingUI.style.background = 'rgba(0, 0, 0, 0.8)';
+    loadingUI.style.color = '#ffffff';
+    loadingUI.style.padding = '20px 40px';
+    loadingUI.style.borderRadius = '8px';
+    loadingUI.style.zIndex = '2100000';
+    loadingUI.style.fontSize = '16px';
+    loadingUI.textContent = '正在截图...';
+    document.body.appendChild(loadingUI);
+
+    // 等待数学公式重新渲染
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // 执行截图
     const options = {
-      logging: false,
+      logging: true,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       scale: 2,
       width: width,
       height: height,
-      x: window.scrollX + left,
-      y: window.scrollY + top,
-      scrollX: -window.scrollX - left,
-      scrollY: -window.scrollY - top,
-      windowWidth: document.documentElement.scrollWidth,
-      windowHeight: document.documentElement.scrollHeight,
-      foreignObjectRendering: false,
-      removeContainer: true,
-      ignoreElements: (element) => {
-        // 忽略所有图片和多媒体元素
-        return ['IMG', 'VIDEO', 'IFRAME', 'CANVAS'].includes(element.tagName);
-      },
-      onclone: function(clonedDoc) {
-        // 移除UI元素
-        const elements = clonedDoc.querySelectorAll(
-          '.math-magic-toolbar, .math-magic-overlay, .math-magic-selection'
-        );
-        elements.forEach(el => el.remove());
-        
-        // 对克隆的文档也应用黑白模式
-        setBlackAndWhite(clonedDoc.documentElement);
+      onclone: (clonedDoc) => {
+        const clonedMathElements = clonedDoc.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
+        clonedMathElements.forEach(el => {
+          el.style.display = 'inline-block';
+          el.style.visibility = 'visible';
+          el.style.opacity = '1';
+          el.style.position = 'static';
+          el.style.transform = 'none';
+        });
       }
     };
-
-    // 执行截图
-    updateLoadingText('正在截图...');
-    const canvas = await html2canvas(document.documentElement, options);
-
-    // 清理临时容器
-    tempContainer.remove();
-
-    console.log('html2canvas completed');
-    updateLoadingText('正在压缩图片...');
-
-    // 转换为base64图片数据，使用黑白模式
-    const imageData = canvas.toDataURL('image/jpeg', {
-      quality: 0.95,
-      colorSpace: 'srgb'
-    });
-    console.log('Image captured, size:', imageData.length);
-
-    // 压缩图片
+    
+    const canvas = await html2canvas(tempContainer, options);
+    
+    // 处理截图结果
+    const imageData = canvas.toDataURL('image/png', 1.0);
     const compressedImage = await compressImage(imageData);
-    console.log('Image compressed, size:', compressedImage.length);
 
-    // 发送到 popup
     chrome.runtime.sendMessage({
       type: 'CAPTURE_COMPLETE',
       imageData: compressedImage
@@ -461,17 +461,19 @@ async function captureArea(selectionRect) {
 
   } catch (error) {
     console.error('截图失败:', error);
-    // 发送错误消息
     chrome.runtime.sendMessage({ 
       type: 'CAPTURE_COMPLETE',
       error: error.message 
     });
     throw error;
   } finally {
-    // 清理加载遮罩
-    if (loadingOverlay && loadingOverlay.parentNode) {
-      loadingOverlay.remove();
-    }
+    // 恢复遮罩层和工具栏
+    if (overlay) overlay.style.display = 'block';
+    if (toolbar) toolbar.style.display = 'block';
+    if (selection) selection.style.display = 'block';
+    
+    if (loadingUI) loadingUI.remove();
+    if (tempContainer) tempContainer.remove();
   }
 }
 
