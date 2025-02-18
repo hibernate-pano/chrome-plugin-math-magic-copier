@@ -1,7 +1,7 @@
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // 检查URL中是否有错误信息
   const urlParams = new URLSearchParams(window.location.search);
-  const error = urlParams.get('error');
+  const error = urlParams.get("error");
   if (error) {
     showStatus(decodeURIComponent(error));
     return;
@@ -9,7 +9,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 检查是否有上一次的截图数据
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'GET_LAST_CAPTURE' });
+    const response = await chrome.runtime.sendMessage({
+      type: "GET_LAST_CAPTURE",
+    });
     if (response && response.imageData) {
       // 显示图片
       currentImageData = response.imageData;
@@ -17,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       enableAnalyzeButton();
     }
   } catch (error) {
-    console.error('获取截图数据失败:', error);
+    console.error("获取截图数据失败:", error);
   }
 });
 
@@ -42,6 +44,9 @@ function displayResult(latex) {
 }
 
 function handleAnalysisResult(result) {
+  const resultContainer = document.getElementById("resultContainer");
+  const latexContent = document.getElementById("latexContent");
+
   if (result.success) {
     // 提取 LaTeX 部分
     const latexMatch = result.result.match(
@@ -52,8 +57,24 @@ function handleAnalysisResult(result) {
     } else {
       currentLatex = result.result; // 如果没有找到标记，使用整个结果
     }
-    displayResult(currentLatex);
+
+    // 更新 LaTeX 内容
+    latexContent.textContent = currentLatex;
+
+    // 显示结果容器
+    resultContainer.style.display = "block";
+
+    // 触发重排后添加显示类
+    requestAnimationFrame(() => {
+      resultContainer.classList.add("show");
+    });
   } else {
+    // 隐藏结果容器
+    resultContainer.classList.remove("show");
+    setTimeout(() => {
+      resultContainer.style.display = "none";
+    }, 300);
+
     showStatus(result.error);
   }
 }
@@ -71,13 +92,34 @@ let currentImageData = null; // 添加当前图片数据变量
 let currentLatex = ""; // 添加当前LaTeX变量
 
 // 工具函数
-function showStatus(message, type = "error") {
+function showStatus(message, type = "error", duration = 3000) {
   statusDiv.textContent = message;
   statusDiv.className = `status ${type}`;
   statusDiv.style.display = "block";
+
+  if (duration > 0) {
+    setTimeout(() => {
+      hideStatus();
+    }, duration);
+  }
+
+  return {
+    hide: hideStatus,
+    update: (newMessage, newType) => {
+      statusDiv.textContent = newMessage;
+      if (newType) {
+        statusDiv.className = `status ${newType}`;
+      }
+    },
+  };
+}
+
+function hideStatus() {
+  statusDiv.style.opacity = "0";
   setTimeout(() => {
     statusDiv.style.display = "none";
-  }, 3000);
+    statusDiv.style.opacity = "1";
+  }, 300);
 }
 
 function enableAnalyzeButton() {
@@ -216,7 +258,15 @@ analyzeButton.addEventListener("click", async () => {
   }
 
   try {
-    showStatus("正在分析图片...", "info");
+    // 显示持续的加载状态
+    const loadingStatus = showStatus("正在分析图片...", "info", 0);
+    analyzeButton.disabled = true;
+
+    // 添加加载动画类
+    statusDiv.innerHTML = `
+      <div class="loading-spinner"></div>
+      <span>正在分析图片...</span>
+    `;
 
     // 确保发送完整的 data URL
     const imageData = currentImageData.startsWith("data:image/")
@@ -230,10 +280,23 @@ analyzeButton.addEventListener("click", async () => {
     });
 
     console.log("OCR 识别结果:", response);
+
+    // 更新状态为处理中
+    loadingStatus.update("正在处理识别结果...");
+
+    // 等待一小段时间以确保状态更新显示
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // 处理分析结果
     handleAnalysisResult(response);
+
+    // 隐藏加载状态
+    loadingStatus.hide();
   } catch (error) {
     console.error("分析失败:", error);
     showStatus("分析失败: " + error.message);
+  } finally {
+    analyzeButton.disabled = false;
   }
 });
 
@@ -273,11 +336,11 @@ document.getElementById("copyLatex").addEventListener("click", async () => {
 startCapture.addEventListener("click", async () => {
   try {
     // 获取当前活动标签页
-    const [tab] = await chrome.tabs.query({ 
-      active: true, 
-      currentWindow: true 
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
     });
-    
+
     if (!tab) {
       showStatus("无法获取当前标签页");
       return;
@@ -286,7 +349,7 @@ startCapture.addEventListener("click", async () => {
     // 注入内容脚本
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ['content.js']
+      files: ["content.js"],
     });
 
     // 发送消息给内容脚本开始截图
