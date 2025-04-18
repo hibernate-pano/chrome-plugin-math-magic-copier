@@ -382,7 +382,7 @@ async function compressImage(base64Data) {
   });
 }
 
-// 捕获选中区域 - 重构版本
+// 捕获选中区域 - 完全重构版本
 async function captureArea(selectionRect) {
   let loadingUI = null;
 
@@ -418,29 +418,55 @@ async function captureArea(selectionRect) {
     // 等待一下，确保 UI 已经隐藏
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // 使用 Chrome 扩展的 captureVisibleTab API 捕获当前标签页
-    console.log('使用 chrome.tabs.captureVisibleTab 截取当前标签页');
+    // 创建一个临时元素来定位选区
+    const targetElement = document.createElement('div');
+    targetElement.style.position = 'absolute';
+    targetElement.style.left = left + 'px';
+    targetElement.style.top = top + 'px';
+    targetElement.style.width = width + 'px';
+    targetElement.style.height = height + 'px';
+    targetElement.style.zIndex = '-1';
+    targetElement.style.pointerEvents = 'none';
+    targetElement.style.backgroundColor = 'transparent';
+    document.body.appendChild(targetElement);
 
-    // 发送消息给 background 脚本，请求截取当前标签页
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({
-        type: 'CAPTURE_VISIBLE_TAB',
-        rect: selectionRect
-      }, (response) => {
-        resolve(response);
-      });
+    console.log('直接使用 html2canvas 截取选区');
+
+    // 考虑设备像素比
+    const pixelRatio = window.devicePixelRatio || 1;
+
+    // 使用 html2canvas 直接截取选区
+    const canvas = await html2canvas(targetElement, {
+      backgroundColor: null,
+      scale: pixelRatio,
+      logging: true,
+      useCORS: true,
+      allowTaint: true,
+      ignoreElements: (element) => {
+        // 忽略我们的UI元素
+        return element === overlay ||
+          element === toolbar ||
+          element === selection ||
+          element === loadingUI ||
+          element === targetElement;
+      }
     });
 
-    if (!response || !response.success) {
-      throw new Error(response?.error || '截图失败');
-    }
+    // 移除临时元素
+    targetElement.remove();
 
-    console.log('截图成功，获取图片数据');
+    // 转换为数据 URL
+    const imageData = canvas.toDataURL('image/png');
+    console.log('截图成功，图片数据长度:', imageData.length);
+
+    // 压缩图片
+    const compressedImage = await compressImage(imageData);
+    console.log('压缩后图片数据长度:', compressedImage.length);
 
     // 发送截图数据
     chrome.runtime.sendMessage({
       type: 'CAPTURE_COMPLETE',
-      imageData: response.imageData
+      imageData: compressedImage
     });
 
     console.log('截图数据已发送到 background');
