@@ -559,43 +559,49 @@ async function reopenPopup() {
   }
 }
 
-// 裁剪图片
+// 裁剪图片 - 使用 OffscreenCanvas
 async function cropImage(imageDataUrl, rect) {
   return new Promise((resolve, reject) => {
     try {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          // 创建 Canvas 元素
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
+      // 创建一个 Blob URL
+      fetch(imageDataUrl)
+        .then(response => response.blob())
+        .then(blob => createImageBitmap(blob))
+        .then(imageBitmap => {
+          try {
+            // 创建 OffscreenCanvas
+            const canvas = new OffscreenCanvas(rect.width, rect.height);
+            const ctx = canvas.getContext('2d');
 
-          // 设置 Canvas 尺寸为选区大小
-          canvas.width = rect.width;
-          canvas.height = rect.height;
+            // 设置 Canvas 尺寸为选区大小
+            canvas.width = rect.width;
+            canvas.height = rect.height;
 
-          // 绘制裁剪后的图片
-          ctx.drawImage(
-            img,
-            rect.left, rect.top, rect.width, rect.height,  // 源图片中的选区
-            0, 0, rect.width, rect.height  // 目标 Canvas 中的位置和尺寸
-          );
+            // 绘制裁剪后的图片
+            ctx.drawImage(
+              imageBitmap,
+              rect.left, rect.top, rect.width, rect.height,  // 源图片中的选区
+              0, 0, rect.width, rect.height  // 目标 Canvas 中的位置和尺寸
+            );
 
-          // 转换为 Data URL
-          const croppedImageData = canvas.toDataURL('image/png');
-          resolve(croppedImageData);
-        } catch (error) {
-          console.error('裁剪图片失败:', error);
+            // 转换为 Blob
+            return canvas.convertToBlob({ type: 'image/png' });
+          } catch (error) {
+            console.error('裁剪图片失败:', error);
+            reject(error);
+          }
+        })
+        .then(blob => {
+          // 将 Blob 转换为 Data URL
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('转换图片数据失败'));
+          reader.readAsDataURL(blob);
+        })
+        .catch(error => {
+          console.error('处理图片失败:', error);
           reject(error);
-        }
-      };
-
-      img.onerror = (error) => {
-        console.error('加载图片失败:', error);
-        reject(new Error('加载图片失败'));
-      };
-
-      img.src = imageDataUrl;
+        });
     } catch (error) {
       console.error('创建图片元素失败:', error);
       reject(error);
