@@ -539,13 +539,8 @@ chrome.commands.onCommand.addListener(async (command) => {
     }
 
     try {
-      // 注入内容脚本
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ["content.js"],
-      });
-
       // 发送消息给内容脚本开始截图
+      // 不需要再次注入content.js，因为它已经在manifest.json中注入了
       await chrome.tabs.sendMessage(tab.id, { type: "START_CAPTURE" });
     } catch (error) {
       console.error('启动截图失败:', error);

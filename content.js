@@ -1,16 +1,28 @@
-// 全局变量声明
-let overlay = null,
-  selection = null,
-  toolbar = null,
-  startX = 0,
-  startY = 0,
-  isDrawing = false,
-  lastSelectionRect = null;
-
-// 确保只声明一次
-if (typeof window.isCapturing === 'undefined') {
+// 确保全局变量只声明一次
+if (typeof window.mathMagicInitialized === 'undefined') {
+  // 全局变量声明
+  window.mathMagicOverlay = null;
+  window.mathMagicSelection = null;
+  window.mathMagicToolbar = null;
+  window.mathMagicStartX = 0;
+  window.mathMagicStartY = 0;
+  window.mathMagicIsDrawing = false;
+  window.mathMagicLastSelectionRect = null;
   window.isCapturing = false;
+
+  // 标记脚本已初始化
+  window.mathMagicInitialized = true;
+  console.log('Math Magic Copier: 脚本初始化');
 }
+
+// 使用简化的变量名以便于代码可读性
+let overlay = window.mathMagicOverlay,
+  selection = window.mathMagicSelection,
+  toolbar = window.mathMagicToolbar,
+  startX = window.mathMagicStartX,
+  startY = window.mathMagicStartY,
+  isDrawing = window.mathMagicIsDrawing,
+  lastSelectionRect = window.mathMagicLastSelectionRect;
 
 // 创建选择框
 function createSelection() {
@@ -27,6 +39,9 @@ function createSelection() {
   selection.style.boxSizing = 'border-box';
 
   document.body.appendChild(selection);
+
+  // 更新全局变量
+  window.mathMagicSelection = selection;
 }
 
 // 创建工具栏
@@ -113,22 +128,26 @@ function createToolbar() {
         console.log('【DEBUG】Removing overlay');
         overlay.remove();
         overlay = null;
+        window.mathMagicOverlay = null;
       }
       if (selection) {
         console.log('【DEBUG】Removing selection');
         selection.remove();
         selection = null;
+        window.mathMagicSelection = null;
       }
       if (toolbar) {
         console.log('【DEBUG】Removing toolbar');
         toolbar.remove();
         toolbar = null;
+        window.mathMagicToolbar = null;
       }
 
       // 恢复页面选中
       document.body.style.userSelect = '';
       window.isCapturing = false;
       isDrawing = false;
+      window.mathMagicIsDrawing = false;
       console.log('【DEBUG】Cleanup completed');
     }
   });
@@ -154,6 +173,10 @@ function createToolbar() {
   toolbar.appendChild(captureBtn);
   toolbar.appendChild(cancelBtn);
   document.body.appendChild(toolbar);
+
+  // 更新全局变量
+  window.mathMagicToolbar = toolbar;
+
   return toolbar;
 }
 
@@ -181,6 +204,9 @@ function createOverlay() {
   });
 
   document.body.appendChild(overlay);
+
+  // 更新全局变量
+  window.mathMagicOverlay = overlay;
 }
 
 // 更新选择框位置和大小
@@ -460,6 +486,7 @@ function startCapture() {
 
   window.isCapturing = true;
   isDrawing = false;
+  window.mathMagicIsDrawing = false;
 
   // 创建必要的元素
   if (!overlay) createOverlay();
@@ -505,6 +532,7 @@ function endCapture() {
 
   window.isCapturing = false;
   isDrawing = false;
+  window.mathMagicIsDrawing = false;
 
   // 移除事件监听器
   document.removeEventListener('mousedown', handleMouseDown, true);
@@ -519,14 +547,17 @@ function endCapture() {
   if (overlay) {
     overlay.remove();
     overlay = null;
+    window.mathMagicOverlay = null;
   }
   if (selection) {
     selection.remove();
     selection = null;
+    window.mathMagicSelection = null;
   }
   if (toolbar) {
     toolbar.remove();
     toolbar = null;
+    window.mathMagicToolbar = null;
   }
 
   console.log('Capture mode ended');
@@ -550,8 +581,11 @@ function handleMouseDown(e) {
   }
 
   isDrawing = true;
+  window.mathMagicIsDrawing = true;
   startX = e.clientX;
   startY = e.clientY;
+  window.mathMagicStartX = startX;
+  window.mathMagicStartY = startY;
   console.log('【DEBUG】Starting draw:', { startX, startY });
 
   if (selection) {
@@ -602,6 +636,7 @@ function handleMouseUp(e) {
   }
 
   isDrawing = false;
+  window.mathMagicIsDrawing = false;
 
   // 计算选择框的最终尺寸
   const currentX = e.clientX;
@@ -628,6 +663,7 @@ function handleMouseUp(e) {
     right: left + width,
     bottom: top + height
   };
+  window.mathMagicLastSelectionRect = lastSelectionRect;
   console.log('【DEBUG】Selection stored:', lastSelectionRect);
 
   // 如果选择框太小，不显示工具栏
