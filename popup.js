@@ -221,9 +221,13 @@ fileInput.addEventListener("change", (e) => {
 function handleImageFile(file) {
   console.log('处理图片文件:', file.name, file.type, file.size);
 
+  // 显示加载状态
+  const loadingStatus = showStatus('正在加载图片...', 'info', 0);
+
   // 验证文件类型
   if (!file.type.startsWith("image/")) {
-    showStatus("请选择图片文件");
+    loadingStatus.update('请选择图片文件', 'error');
+    setTimeout(() => loadingStatus.hide(), 3000);
     return;
   }
 
@@ -237,9 +241,12 @@ function handleImageFile(file) {
       const base64Data = e.target.result;
       console.log('文件读取成功, 数据长度:', base64Data.length);
 
+      // 更新加载状态
+      loadingStatus.update('正在处理图片...', 'info');
+
       if (isSVG) {
         console.log("处理 SVG 文件，将转换为 PNG 格式");
-        showStatus("正在转换 SVG 文件...", "info");
+        loadingStatus.update('正在转换 SVG 文件...', 'info');
 
         // 创建图片元素用于转换
         await new Promise((resolve, reject) => {
@@ -267,43 +274,82 @@ function handleImageFile(file) {
               showPreviewImage(pngData);
               resolve();
             } catch (error) {
+              console.error('转换 SVG 失败:', error);
               reject(error);
             }
           };
-          img.onerror = () => reject(new Error("SVG 加载失败"));
+          img.onerror = (e) => {
+            console.error('SVG 图片加载失败:', e);
+            reject(new Error("SVG 加载失败"));
+          };
           img.src = base64Data;
         });
       } else {
+        // 处理普通图片
+        console.log('处理普通图片格式:', file.type);
         currentImageData = base64Data;
         showPreviewImage(base64Data);
       }
 
       if (currentImageData) {
         console.log("Image data length:", currentImageData.length);
+        // 隐藏加载状态
+        loadingStatus.hide();
       } else {
         throw new Error("图片数据处理失败");
       }
     } catch (error) {
       console.error("处理图片失败:", error);
-      showStatus("处理图片失败: " + error.message);
+      loadingStatus.update('处理图片失败: ' + error.message, 'error');
+      setTimeout(() => loadingStatus.hide(), 3000);
     }
   };
   reader.onerror = (error) => {
     console.error('读取文件失败:', error);
-    showStatus("读取文件失败");
+    loadingStatus.update('读取文件失败', 'error');
+    setTimeout(() => loadingStatus.hide(), 3000);
   };
 
-  reader.readAsDataURL(file);
+  try {
+    reader.readAsDataURL(file);
+  } catch (error) {
+    console.error('调用 readAsDataURL 失败:', error);
+    loadingStatus.update('读取文件失败: ' + error.message, 'error');
+    setTimeout(() => loadingStatus.hide(), 3000);
+  }
 }
 
 // 显示预览图片
 function showPreviewImage(src) {
   console.log('显示预览图片:', src.substring(0, 50) + '...');
+
+  // 确保图片源有效
+  if (!src) {
+    console.error('图片源无效');
+    return;
+  }
+
+  // 设置图片源
   previewImage.src = src;
-  previewImage.style.display = "block";
-  imagePreview.querySelector(".placeholder").style.display = "none";
-  clearButton.style.display = "flex";
-  enableAnalyzeButton();
+
+  // 添加图片加载事件
+  previewImage.onload = function () {
+    console.log('图片加载成功');
+    // 显示图片
+    previewImage.style.display = "block";
+    // 隐藏占位符
+    imagePreview.querySelector(".placeholder").style.display = "none";
+    // 显示清除按钮
+    clearButton.style.display = "flex";
+    // 启用分析按钮
+    enableAnalyzeButton();
+  };
+
+  // 添加图片错误事件
+  previewImage.onerror = function () {
+    console.error('图片加载失败:', src.substring(0, 100));
+    showStatus('图片加载失败', 'error');
+  };
 }
 
 // 清除图片
@@ -370,7 +416,13 @@ analyzeButton.addEventListener("click", async () => {
 
     // 如果分析成功，保存到历史记录
     if (response.success && currentLatex) {
-      await saveToHistory(imageData, currentLatex);
+      console.log('分析成功，尝试保存到历史记录');
+      const saved = await saveToHistory(imageData, currentLatex);
+      if (saved) {
+        console.log('历史记录保存成功');
+      } else {
+        console.warn('历史记录保存失败');
+      }
     }
 
     // 隐藏加载状态
@@ -513,24 +565,41 @@ historyBtn.addEventListener('click', async () => {
         // 点击历史记录项加载到当前界面
         li.addEventListener('click', () => {
           console.log('点击历史记录项:', item.timestamp);
-          currentImageData = item.imageData;
-          currentLatex = item.latex || '';
 
-          // 显示图片
-          showPreviewImage(item.imageData);
+          try {
+            // 验证图片数据
+            if (!item.imageData) {
+              throw new Error('历史记录中的图片数据无效');
+            }
 
-          // 显示 LaTeX
-          const resultContainer = document.getElementById('resultContainer');
-          const latexContent = document.getElementById('latexContent');
+            // 保存数据
+            currentImageData = item.imageData;
+            currentLatex = item.latex || '';
 
-          latexContent.textContent = currentLatex;
-          resultContainer.style.display = 'block';
-          requestAnimationFrame(() => {
-            resultContainer.classList.add('show');
-          });
+            // 显示加载状态
+            const loadingStatus = showStatus('正在加载历史记录...', 'info', 0);
 
-          // 关闭模态框
-          closeHistoryModal();
+            // 显示图片
+            showPreviewImage(item.imageData);
+
+            // 显示 LaTeX
+            const resultContainer = document.getElementById('resultContainer');
+            const latexContent = document.getElementById('latexContent');
+
+            latexContent.textContent = currentLatex;
+            resultContainer.style.display = 'block';
+            requestAnimationFrame(() => {
+              resultContainer.classList.add('show');
+              // 隐藏加载状态
+              loadingStatus.hide();
+            });
+
+            // 关闭模态框
+            closeHistoryModal();
+          } catch (error) {
+            console.error('加载历史记录失败:', error);
+            showStatus('加载历史记录失败: ' + error.message, 'error');
+          }
         });
 
         historyList.appendChild(li);
@@ -563,8 +632,21 @@ historyModal.addEventListener('click', (e) => {
 // 保存到历史记录
 async function saveToHistory(imageData, latex) {
   try {
+    console.log('开始保存到历史记录');
+
+    // 验证数据
+    if (!imageData) {
+      throw new Error('图片数据为空');
+    }
+
+    if (!latex) {
+      console.warn('保存的 LaTeX 内容为空');
+      latex = '';
+    }
+
     // 获取当前历史记录
     const { history = [] } = await chrome.storage.local.get('history');
+    console.log('当前历史记录数量:', history.length);
 
     // 添加新记录
     const newRecord = {
@@ -579,8 +661,10 @@ async function saveToHistory(imageData, latex) {
     // 保存到存储
     await chrome.storage.local.set({ history: updatedHistory });
 
-    console.log('已保存到历史记录');
+    console.log('已保存到历史记录, 新总数:', updatedHistory.length);
+    return true;
   } catch (error) {
     console.error('保存历史记录失败:', error);
+    return false;
   }
 }
