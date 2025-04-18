@@ -64,9 +64,24 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       showErrorNotification(message.error);
     } else {
       // 保存截图数据
-      lastCapturedImage = message.imageData;
-      // 重新打开或更新popup
-      reopenPopup();
+      console.log('截图数据长度:', message.imageData ? message.imageData.length : 0);
+
+      // 确保截图数据有效
+      if (message.imageData && message.imageData.length > 0) {
+        // 如果数据已经是完整的 data URL，则直接保存
+        if (message.imageData.startsWith('data:image/')) {
+          lastCapturedImage = message.imageData;
+        } else {
+          // 否则保存原始数据
+          lastCapturedImage = message.imageData;
+        }
+
+        // 重新打开或更新popup
+        reopenPopup();
+      } else {
+        console.error('截图数据无效');
+        showErrorNotification('截图数据无效，请重试');
+      }
     }
     sendResponse({ status: 'success' });
     return true;

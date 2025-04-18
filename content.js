@@ -227,6 +227,14 @@ function updateSelection(e) {
 
 // 压缩图片
 async function compressImage(base64Data) {
+  console.log('开始压缩图片，原始数据长度:', base64Data.length);
+
+  // 如果数据已经是完整的 data URL，则直接返回
+  if (base64Data.startsWith('data:image/')) {
+    console.log('图片数据已经是 data URL 格式');
+    return base64Data;
+  }
+
   // 计算base64字符串对应的文件大小（以字节为单位）
   function getBase64Size(base64String) {
     const base64WithoutHeader = base64String.split(',')[1] || base64String;
@@ -235,13 +243,16 @@ async function compressImage(base64Data) {
 
   return new Promise((resolve) => {
     const img = new Image();
+
     img.onload = () => {
+      console.log('图片加载成功，尺寸:', img.width, 'x', img.height);
       let quality = 0.9; // 提高初始质量
       let maxSize = 4000; // 提高最大尺寸到接近4096
 
       // 检查是否为 SVG 格式
       const isSVG = base64Data.startsWith('data:image/svg+xml');
       if (isSVG) {
+        console.log('处理 SVG 格式图片');
         // 对于 SVG，我们直接转换为高质量的 PNG
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -259,7 +270,8 @@ async function compressImage(base64Data) {
 
         // 转换为高质量 PNG
         const pngData = canvas.toDataURL('image/png', 1.0);
-        resolve(pngData.split(',')[1]);
+        console.log('SVG 转换为 PNG 成功，数据长度:', pngData.length);
+        resolve(pngData);
         return;
       }
 
@@ -298,15 +310,16 @@ async function compressImage(base64Data) {
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        // 转换为base64，使用jpeg格式
-        const base64 = canvas.toDataURL('image/jpeg', currentQuality);
-        return base64.split(',')[1]; // 只返回base64数据部分
+        // 转换为base64，使用PNG格式以保持质量
+        const base64 = canvas.toDataURL('image/png', currentQuality);
+        return base64; // 返回完整的 data URL
       }
 
       // 循环尝试压缩直到大小合适
       do {
         compressedBase64 = tryCompress(quality, maxSize);
-        const currentSize = getBase64Size(compressedBase64);
+        const currentSize = compressedBase64.length;
+        console.log('尝试压缩，质量:', quality, '尺寸上限:', maxSize, '结果大小:', currentSize);
 
         // 考虑urlencode后的大小会增加约30%
         const urlEncodedSize = currentSize * 1.3;
@@ -324,9 +337,22 @@ async function compressImage(base64Data) {
         }
       } while (maxSize > 15); // 确保最小边不小于15px
 
+      console.log('压缩完成，最终数据长度:', compressedBase64.length);
       resolve(compressedBase64);
     };
-    img.src = base64Data;
+
+    img.onerror = (error) => {
+      console.error('图片加载失败:', error);
+      // 如果加载失败，返回原始数据
+      resolve('data:image/png;base64,' + base64Data);
+    };
+
+    // 确保数据是完整的 data URL
+    if (base64Data.startsWith('data:image/')) {
+      img.src = base64Data;
+    } else {
+      img.src = 'data:image/png;base64,' + base64Data;
+    }
   });
 }
 
@@ -336,76 +362,18 @@ async function captureArea(selectionRect) {
   let tempContainer = null;
 
   try {
+    console.log('开始截图，选区信息:', selectionRect);
     const { width, height, left, top } = selectionRect;
+
+    // 验证选区大小
+    if (width < 10 || height < 10) {
+      throw new Error('选区太小，无法截图');
+    }
 
     // 临时隐藏遮罩层和工具栏
     if (overlay) overlay.style.display = 'none';
     if (toolbar) toolbar.style.display = 'none';
     if (selection) selection.style.display = 'none';
-
-    // 创建临时容器
-    tempContainer = document.createElement('div');
-    tempContainer.style.position = 'fixed';
-    tempContainer.style.left = `${left}px`;
-    tempContainer.style.top = `${top}px`;
-    tempContainer.style.width = `${width}px`;
-    tempContainer.style.height = `${height}px`;
-    tempContainer.style.backgroundColor = '#ffffff';
-    tempContainer.style.zIndex = '-1';
-
-    // 获取选区中心的元素
-    const centerX = left + width / 2;
-    const centerY = top + height / 2;
-    const targetElement = document.elementFromPoint(centerX, centerY);
-
-    if (!targetElement) {
-      throw new Error('无法找到目标元素');
-    }
-
-    // 向上查找数学公式容器
-    let mathContainer = targetElement;
-    while (mathContainer &&
-      !mathContainer.classList.contains('katex') &&
-      !mathContainer.classList.contains('MathJax') &&
-      !mathContainer.querySelector('.katex, .MathJax')) {
-      mathContainer = mathContainer.parentElement;
-      if (mathContainer === document.body) {
-        mathContainer = targetElement;
-        break;
-      }
-    }
-
-    // 克隆数学公式容器
-    const clonedContent = mathContainer.cloneNode(true);
-
-    // 获取原始元素的位置和样式
-    const originalRect = mathContainer.getBoundingClientRect();
-    const computedStyle = window.getComputedStyle(mathContainer);
-
-    // 设置克隆元素的样式
-    clonedContent.style.position = 'absolute';
-    clonedContent.style.left = `${originalRect.left - left}px`;
-    clonedContent.style.top = `${originalRect.top - top}px`;
-    clonedContent.style.width = `${originalRect.width}px`;
-    clonedContent.style.height = `${originalRect.height}px`;
-    clonedContent.style.margin = '0';
-    clonedContent.style.padding = computedStyle.padding;
-    clonedContent.style.display = computedStyle.display;
-    clonedContent.style.transform = 'none';
-    clonedContent.style.backgroundColor = '#ffffff';
-
-    // 处理所有数学公式元素
-    const mathElements = clonedContent.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
-    mathElements.forEach(el => {
-      el.style.display = 'inline-block';
-      el.style.visibility = 'visible';
-      el.style.opacity = '1';
-      el.style.position = 'static';
-      el.style.transform = 'none';
-    });
-
-    tempContainer.appendChild(clonedContent);
-    document.body.appendChild(tempContainer);
 
     // 创建加载UI
     loadingUI = document.createElement('div');
@@ -422,41 +390,45 @@ async function captureArea(selectionRect) {
     loadingUI.textContent = '正在截图...';
     document.body.appendChild(loadingUI);
 
-    // 等待数学公式重新渲染
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // 直接截取选区
+    console.log('开始截取选区');
 
-    // 执行截图
+    // 使用 html2canvas 直接截取选区
     const options = {
       logging: true,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       scale: 2,
+      x: left,
+      y: top,
       width: width,
-      height: height,
-      onclone: (clonedDoc) => {
-        const clonedMathElements = clonedDoc.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
-        clonedMathElements.forEach(el => {
-          el.style.display = 'inline-block';
-          el.style.visibility = 'visible';
-          el.style.opacity = '1';
-          el.style.position = 'static';
-          el.style.transform = 'none';
-        });
-      }
+      height: height
     };
 
-    const canvas = await html2canvas(tempContainer, options);
+    // 等待一下，确保 UI 已经隐藏
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // 执行截图
+    console.log('执行 html2canvas 截图');
+    const canvas = await html2canvas(document.body, options);
+    console.log('截图完成，获取图片数据');
 
     // 处理截图结果
     const imageData = canvas.toDataURL('image/png', 1.0);
-    const compressedImage = await compressImage(imageData);
+    console.log('图片数据长度:', imageData.length);
 
+    // 压缩图片
+    const compressedImage = await compressImage(imageData);
+    console.log('压缩后图片数据长度:', compressedImage.length);
+
+    // 发送截图数据
     chrome.runtime.sendMessage({
       type: 'CAPTURE_COMPLETE',
       imageData: compressedImage
     });
 
+    console.log('截图数据已发送到 background');
     return true;
 
   } catch (error) {

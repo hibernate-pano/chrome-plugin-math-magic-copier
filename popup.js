@@ -23,11 +23,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     const response = await chrome.runtime.sendMessage({
       type: "GET_LAST_CAPTURE",
     });
+    console.log('获取上一次截图数据:', response);
+
     if (response && response.imageData) {
       // 显示图片
       currentImageData = response.imageData;
-      showPreviewImage(`data:image/jpeg;base64,${response.imageData}`);
-      enableAnalyzeButton();
+
+      // 处理不同格式的图片数据
+      if (typeof response.imageData === 'string') {
+        if (response.imageData.startsWith('data:image/')) {
+          // 如果已经是 data URL，直接使用
+          showPreviewImage(response.imageData);
+        } else {
+          // 如果是 base64 字符串，添加前缀
+          showPreviewImage(`data:image/png;base64,${response.imageData}`);
+        }
+        enableAnalyzeButton();
+      } else {
+        console.error('无效的图片数据格式');
+      }
     }
   } catch (error) {
     console.error("获取截图数据失败:", error);
