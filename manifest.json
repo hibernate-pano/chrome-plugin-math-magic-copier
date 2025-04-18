@@ -18,6 +18,20 @@
     "system.display",
     "tabs"
   ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+M"
+      },
+      "description": "打开插件弹窗"
+    },
+    "capture_formula": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "截取数学公式"
+    }
+  },
   "host_permissions": [
     "https://aip.baidubce.com/*",
     "<all_urls>",

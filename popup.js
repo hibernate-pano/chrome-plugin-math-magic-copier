@@ -7,6 +7,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  // 获取插件版本号
+  try {
+    const manifest = chrome.runtime.getManifest();
+    const versionElement = document.querySelector('.app-version');
+    if (versionElement && manifest.version) {
+      versionElement.textContent = `v${manifest.version}`;
+    }
+  } catch (error) {
+    console.error('获取插件版本号失败:', error);
+  }
+
   // 检查是否有上一次的截图数据
   try {
     const response = await chrome.runtime.sendMessage({
@@ -21,6 +32,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (error) {
     console.error("获取截图数据失败:", error);
   }
+
+  // 注册快捷键事件
+  registerShortcuts();
 });
 
 function displayResult(latex) {
@@ -84,6 +98,7 @@ const startCapture = document.getElementById("startCapture");
 const imagePreview = document.getElementById("imagePreview");
 const previewImage = document.getElementById("previewImage");
 const fileInput = document.getElementById("fileInput");
+const uploadBtn = document.getElementById("uploadBtn");
 const analyzeButton = document.getElementById("analyzeImage");
 const clearButton = document.getElementById("clearImage");
 const statusDiv = document.getElementById("status");
@@ -94,8 +109,8 @@ let currentLatex = ""; // 添加当前LaTeX变量
 // 工具函数
 function showStatus(message, type = "error", duration = 3000) {
   statusDiv.textContent = message;
-  statusDiv.className = `status ${type}`;
-  statusDiv.style.display = "block";
+  statusDiv.className = `status-message ${type}`;
+  statusDiv.style.display = "flex";
 
   if (duration > 0) {
     setTimeout(() => {
@@ -108,7 +123,7 @@ function showStatus(message, type = "error", duration = 3000) {
     update: (newMessage, newType) => {
       statusDiv.textContent = newMessage;
       if (newType) {
-        statusDiv.className = `status ${newType}`;
+        statusDiv.className = `status-message ${newType}`;
       }
     },
   };
@@ -130,17 +145,64 @@ function disableAnalyzeButton() {
   analyzeButton.disabled = true;
 }
 
+// 上传按钮点击事件
+uploadBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  console.log("Upload button clicked");
+
+  // 使用更安全的方式触发文件选择对话框
+  const event = new MouseEvent('click', {
+    view: window,
+    bubbles: false,  // 阻止事件冒泡
+    cancelable: true
+  });
+  fileInput.dispatchEvent(event);
+});
+
 // 修改图片预览区域的点击事件
 imagePreview.addEventListener("click", (e) => {
   console.log("Image preview clicked", e.target);
-  if (e.target === clearButton) {
-    console.log("Clear button clicked, ignoring upload trigger");
+
+  // 如果点击的是清除按钮或上传按钮，不处理
+  if (e.target === clearButton || e.target === uploadBtn ||
+    e.target.parentElement === uploadBtn) {
+    console.log("Button clicked, ignoring upload trigger");
     return;
   }
 
+  // 如果没有显示图片，则触发文件选择
   if (!previewImage.style.display || previewImage.style.display === "none") {
-    console.log("Triggering file input click");
-    fileInput.click();
+    console.log("Triggering file input click from preview area");
+    uploadBtn.click(); // 直接触发上传按钮的点击事件
+  }
+});
+
+// 添加拖放功能
+imagePreview.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  imagePreview.classList.add('drag-over');
+});
+
+imagePreview.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  imagePreview.classList.remove('drag-over');
+});
+
+imagePreview.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  imagePreview.classList.remove('drag-over');
+
+  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const file = e.dataTransfer.files[0];
+    if (file.type.startsWith('image/')) {
+      handleImageFile(file);
+    } else {
+      showStatus('请拖放图片文件');
+    }
   }
 });
 
@@ -244,10 +306,19 @@ clearButton.addEventListener("click", (e) => {
   e.stopPropagation(); // 阻止事件冒泡
   previewImage.src = "";
   previewImage.style.display = "none";
-  imagePreview.querySelector(".placeholder").style.display = "block";
+  imagePreview.querySelector(".placeholder").style.display = "flex";
   clearButton.style.display = "none";
   currentImageData = null;
   disableAnalyzeButton();
+
+  // 隐藏结果区域
+  const resultContainer = document.getElementById("resultContainer");
+  if (resultContainer.style.display !== "none") {
+    resultContainer.classList.remove("show");
+    setTimeout(() => {
+      resultContainer.style.display = "none";
+    }, 300);
+  }
 });
 
 // 分析按钮点击事件
@@ -290,8 +361,19 @@ analyzeButton.addEventListener("click", async () => {
     // 处理分析结果
     handleAnalysisResult(response);
 
+    // 如果分析成功，保存到历史记录
+    if (response.success && currentLatex) {
+      await saveToHistory(imageData, currentLatex);
+    }
+
     // 隐藏加载状态
     loadingStatus.hide();
+
+    // 成功后滚动到结果区域
+    const resultContainer = document.getElementById("resultContainer");
+    if (resultContainer.style.display !== "none") {
+      resultContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   } catch (error) {
     console.error("分析失败:", error);
     showStatus("分析失败: " + error.message);
@@ -332,8 +414,24 @@ document.getElementById("copyLatex").addEventListener("click", async () => {
   }
 });
 
-// 添加截图按钮事件监听
-startCapture.addEventListener("click", async () => {
+// 注册快捷键
+function registerShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Alt+Shift+C 快捷键触发截图
+    if (e.altKey && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      startCapture.click();
+    }
+
+    // Escape 键关闭弹窗
+    if (e.key === 'Escape') {
+      window.close();
+    }
+  });
+}
+
+// 截图函数
+async function captureScreenshot() {
   try {
     // 获取当前活动标签页
     const [tab] = await chrome.tabs.query({
@@ -361,4 +459,120 @@ startCapture.addEventListener("click", async () => {
     console.error("启动截图失败:", error);
     showStatus("启动截图失败: " + error.message);
   }
+}
+
+// 添加截图按钮事件监听
+startCapture.addEventListener("click", captureScreenshot);
+
+// 历史记录功能
+const historyBtn = document.getElementById('historyBtn');
+const historyModal = document.getElementById('historyModal');
+const historyCloseBtn = document.getElementById('historyCloseBtn');
+const historyList = document.getElementById('historyList');
+
+// 打开历史记录模态框
+historyBtn.addEventListener('click', async () => {
+  try {
+    // 从存储中获取历史记录
+    const { history = [] } = await chrome.storage.local.get('history');
+
+    // 清空历史记录列表
+    historyList.innerHTML = '';
+
+    if (history.length === 0) {
+      // 如果没有历史记录，显示空状态
+      historyList.innerHTML = `<div class="history-empty">暂无历史记录<br>请先截取并分析公式</div>`;
+    } else {
+      // 按时间降序排序
+      history.sort((a, b) => b.timestamp - a.timestamp);
+
+      // 生成历史记录列表
+      history.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'history-item';
+
+        // 格式化时间
+        const date = new Date(item.timestamp);
+        const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+        li.innerHTML = `
+          <img src="${item.imageData}" class="history-item-preview" alt="预览">
+          <div class="history-item-content">
+            <div class="history-item-latex">${item.latex || '无文本'}</div>
+            <div class="history-item-time">${formattedDate}</div>
+          </div>
+        `;
+
+        // 点击历史记录项加载到当前界面
+        li.addEventListener('click', () => {
+          currentImageData = item.imageData;
+          currentLatex = item.latex || '';
+
+          // 显示图片
+          showPreviewImage(item.imageData);
+
+          // 显示 LaTeX
+          const resultContainer = document.getElementById('resultContainer');
+          const latexContent = document.getElementById('latexContent');
+
+          latexContent.textContent = currentLatex;
+          resultContainer.style.display = 'block';
+          requestAnimationFrame(() => {
+            resultContainer.classList.add('show');
+          });
+
+          // 关闭模态框
+          closeHistoryModal();
+        });
+
+        historyList.appendChild(li);
+      });
+    }
+
+    // 显示模态框
+    historyModal.classList.add('show');
+  } catch (error) {
+    console.error('加载历史记录失败:', error);
+    showStatus('加载历史记录失败: ' + error.message);
+  }
 });
+
+// 关闭历史记录模态框
+function closeHistoryModal() {
+  historyModal.classList.remove('show');
+}
+
+// 点击关闭按钮
+historyCloseBtn.addEventListener('click', closeHistoryModal);
+
+// 点击模态框外部关闭
+historyModal.addEventListener('click', (e) => {
+  if (e.target === historyModal) {
+    closeHistoryModal();
+  }
+});
+
+// 保存到历史记录
+async function saveToHistory(imageData, latex) {
+  try {
+    // 获取当前历史记录
+    const { history = [] } = await chrome.storage.local.get('history');
+
+    // 添加新记录
+    const newRecord = {
+      imageData,
+      latex,
+      timestamp: Date.now()
+    };
+
+    // 限制历史记录数量，最多保存20条
+    const updatedHistory = [newRecord, ...history].slice(0, 20);
+
+    // 保存到存储
+    await chrome.storage.local.set({ history: updatedHistory });
+
+    console.log('已保存到历史记录');
+  } catch (error) {
+    console.error('保存历史记录失败:', error);
+  }
+}

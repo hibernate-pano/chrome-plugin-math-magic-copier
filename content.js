@@ -1,11 +1,11 @@
 // 全局变量声明
 let overlay = null,
-    selection = null,
-    toolbar = null,
-    startX = 0,
-    startY = 0,
-    isDrawing = false,
-    lastSelectionRect = null;
+  selection = null,
+  toolbar = null,
+  startX = 0,
+  startY = 0,
+  isDrawing = false,
+  lastSelectionRect = null;
 
 // 确保只声明一次
 if (typeof window.isCapturing === 'undefined') {
@@ -16,7 +16,7 @@ if (typeof window.isCapturing === 'undefined') {
 function createSelection() {
   selection = document.createElement('div');
   selection.className = 'math-magic-selection';
-  
+
   // 设置选择框样式
   selection.style.position = 'fixed';
   selection.style.border = '2px solid #1a73e8';
@@ -25,7 +25,7 @@ function createSelection() {
   selection.style.pointerEvents = 'none';
   selection.style.display = 'none';
   selection.style.boxSizing = 'border-box';
-  
+
   document.body.appendChild(selection);
 }
 
@@ -161,7 +161,7 @@ function createToolbar() {
 function createOverlay() {
   overlay = document.createElement('div');
   overlay.className = 'math-magic-overlay';
-  
+
   // 设置遮罩层样式
   overlay.style.position = 'fixed';
   overlay.style.top = '0';
@@ -245,18 +245,18 @@ async function compressImage(base64Data) {
         // 对于 SVG，我们直接转换为高质量的 PNG
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         // 使用较大的尺寸以保持清晰度
         canvas.width = Math.min(img.width * 2, 4000);
         canvas.height = Math.min(img.height * 2, 4000);
-        
+
         // 使用白色背景
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         // 绘制 SVG
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
+
         // 转换为高质量 PNG
         const pngData = canvas.toDataURL('image/png', 1.0);
         resolve(pngData.split(',')[1]);
@@ -337,12 +337,12 @@ async function captureArea(selectionRect) {
 
   try {
     const { width, height, left, top } = selectionRect;
-    
+
     // 临时隐藏遮罩层和工具栏
     if (overlay) overlay.style.display = 'none';
     if (toolbar) toolbar.style.display = 'none';
     if (selection) selection.style.display = 'none';
-    
+
     // 创建临时容器
     tempContainer = document.createElement('div');
     tempContainer.style.position = 'fixed';
@@ -352,22 +352,22 @@ async function captureArea(selectionRect) {
     tempContainer.style.height = `${height}px`;
     tempContainer.style.backgroundColor = '#ffffff';
     tempContainer.style.zIndex = '-1';
-    
+
     // 获取选区中心的元素
     const centerX = left + width / 2;
     const centerY = top + height / 2;
     const targetElement = document.elementFromPoint(centerX, centerY);
-    
+
     if (!targetElement) {
       throw new Error('无法找到目标元素');
     }
 
     // 向上查找数学公式容器
     let mathContainer = targetElement;
-    while (mathContainer && 
-           !mathContainer.classList.contains('katex') && 
-           !mathContainer.classList.contains('MathJax') &&
-           !mathContainer.querySelector('.katex, .MathJax')) {
+    while (mathContainer &&
+      !mathContainer.classList.contains('katex') &&
+      !mathContainer.classList.contains('MathJax') &&
+      !mathContainer.querySelector('.katex, .MathJax')) {
       mathContainer = mathContainer.parentElement;
       if (mathContainer === document.body) {
         mathContainer = targetElement;
@@ -377,11 +377,11 @@ async function captureArea(selectionRect) {
 
     // 克隆数学公式容器
     const clonedContent = mathContainer.cloneNode(true);
-    
+
     // 获取原始元素的位置和样式
     const originalRect = mathContainer.getBoundingClientRect();
     const computedStyle = window.getComputedStyle(mathContainer);
-    
+
     // 设置克隆元素的样式
     clonedContent.style.position = 'absolute';
     clonedContent.style.left = `${originalRect.left - left}px`;
@@ -393,7 +393,7 @@ async function captureArea(selectionRect) {
     clonedContent.style.display = computedStyle.display;
     clonedContent.style.transform = 'none';
     clonedContent.style.backgroundColor = '#ffffff';
-    
+
     // 处理所有数学公式元素
     const mathElements = clonedContent.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
     mathElements.forEach(el => {
@@ -403,7 +403,7 @@ async function captureArea(selectionRect) {
       el.style.position = 'static';
       el.style.transform = 'none';
     });
-    
+
     tempContainer.appendChild(clonedContent);
     document.body.appendChild(tempContainer);
 
@@ -445,9 +445,9 @@ async function captureArea(selectionRect) {
         });
       }
     };
-    
+
     const canvas = await html2canvas(tempContainer, options);
-    
+
     // 处理截图结果
     const imageData = canvas.toDataURL('image/png', 1.0);
     const compressedImage = await compressImage(imageData);
@@ -461,9 +461,9 @@ async function captureArea(selectionRect) {
 
   } catch (error) {
     console.error('截图失败:', error);
-    chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({
       type: 'CAPTURE_COMPLETE',
-      error: error.message 
+      error: error.message
     });
     throw error;
   } finally {
@@ -471,7 +471,7 @@ async function captureArea(selectionRect) {
     if (overlay) overlay.style.display = 'block';
     if (toolbar) toolbar.style.display = 'block';
     if (selection) selection.style.display = 'block';
-    
+
     if (loadingUI) loadingUI.remove();
     if (tempContainer) tempContainer.remove();
   }
@@ -480,12 +480,12 @@ async function captureArea(selectionRect) {
 // 开始捕获模式
 function startCapture() {
   console.log('Starting capture mode...');
-  
+
   if (window.isCapturing) {
     console.log('Already in capture mode');
     return;
   }
-  
+
   window.isCapturing = true;
   isDrawing = false;
 
@@ -508,11 +508,23 @@ function startCapture() {
   document.addEventListener('mousedown', handleMouseDown, true);
   document.addEventListener('mousemove', handleMouseMove, true);
   document.addEventListener('mouseup', handleMouseUp, true);
+  document.addEventListener('keydown', handleKeyDown, true); // 添加键盘事件监听
 
   // 防止页面选中
   document.body.style.userSelect = 'none';
 
   console.log('Capture mode started, waiting for user selection...');
+}
+
+// 处理键盘事件
+function handleKeyDown(e) {
+  // 如果按下 ESC 键，退出截图模式
+  if (e.key === 'Escape') {
+    console.log('【DEBUG】ESC key pressed, exiting capture mode');
+    e.preventDefault();
+    e.stopPropagation();
+    endCapture();
+  }
 }
 
 // 结束捕获模式
@@ -526,6 +538,7 @@ function endCapture() {
   document.removeEventListener('mousedown', handleMouseDown, true);
   document.removeEventListener('mousemove', handleMouseMove, true);
   document.removeEventListener('mouseup', handleMouseUp, true);
+  document.removeEventListener('keydown', handleKeyDown, true); // 移除键盘事件监听
 
   // 恢复页面选中
   document.body.style.userSelect = '';
@@ -781,7 +794,7 @@ function createAnalysisLoading() {
 
   container.appendChild(header);
   container.appendChild(content);
-  
+
   // 添加到页面并显示
   document.body.appendChild(container);
   requestAnimationFrame(() => {
@@ -796,7 +809,7 @@ function createAnalysisLoading() {
 function updateAnalysisResult(container, result) {
   const content = container.querySelector('.math-magic-result-content');
   const loadingWrapper = content.querySelector('.math-magic-loading-wrapper');
-  
+
   // 创建结果内容
   const resultWrapper = document.createElement('div');
   resultWrapper.className = 'math-magic-result-wrapper';
@@ -804,11 +817,11 @@ function updateAnalysisResult(container, result) {
   resultWrapper.style.opacity = '0';
   resultWrapper.style.transform = 'translateY(10px)';
   resultWrapper.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-  
+
   // 解析结果 JSON
   try {
     const resultData = JSON.parse(result);
-    
+
     // 创建 LaTeX 显示区域
     const latexContainer = document.createElement('div');
     latexContainer.style.padding = '16px';
@@ -853,7 +866,7 @@ function updateAnalysisResult(container, result) {
       copyButton.style.transform = 'translateY(0)';
       copyButton.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
     };
-    
+
     // 添加复制功能
     copyButton.onclick = async () => {
       try {
@@ -884,12 +897,12 @@ function updateAnalysisResult(container, result) {
     console.error('解析结果失败:', error);
     resultWrapper.textContent = '';
   }
-  
+
   // 替换加载动画
   loadingWrapper.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
   loadingWrapper.style.opacity = '0';
   loadingWrapper.style.transform = 'translateY(-10px)';
-  
+
   setTimeout(() => {
     loadingWrapper.remove();
     content.appendChild(resultWrapper);
@@ -901,9 +914,9 @@ function updateAnalysisResult(container, result) {
 }
 
 // 修改消息监听器
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log("Content script received message:", message);
-  
+
   if (message.type === "START_CAPTURE") {
     console.log("开始截图模式");
     startCapture();

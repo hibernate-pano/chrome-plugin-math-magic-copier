@@ -118,7 +118,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
   if (message.type === 'START_CAPTURE') {
     // 向content script发送消息
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (tabs[0]) {
         chrome.tabs.sendMessage(tabs[0].id, { type: 'START_CAPTURE' })
           .then(response => {
@@ -346,7 +346,7 @@ async function analyzeImage(imageData) {
                 type: 'text',
                 text: `
                 请识别这张图片中的数学公式，并以以下格式输出。如果有多个公式，请用换行分隔。
-                
+
                 ## 纯文本:
                 {text}
 
@@ -433,7 +433,7 @@ async function openPopupWithImage() {
   try {
     // 获取当前窗口信息
     const currentWindow = await chrome.windows.getCurrent();
-    
+
     // 计算新窗口位置
     const left = currentWindow.left + 50;
     const top = currentWindow.top + 50;
@@ -502,4 +502,44 @@ async function reopenPopup() {
 // 监听窗口关闭事件
 chrome.windows.onRemoved.addListener((windowId) => {
   // 不再需要处理窗口ID
+});
+
+// 监听快捷键
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'capture_formula') {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (!tab) {
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'images/icon48.png',
+        title: '无法截图',
+        message: '无法获取当前标签页'
+      });
+      return;
+    }
+
+    try {
+      // 注入内容脚本
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content.js"],
+      });
+
+      // 发送消息给内容脚本开始截图
+      await chrome.tabs.sendMessage(tab.id, { type: "START_CAPTURE" });
+    } catch (error) {
+      console.error('启动截图失败:', error);
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'images/icon48.png',
+        title: '截图失败',
+        message: error.message || '无法启动截图功能'
+      });
+    }
+  }
 });
