@@ -151,6 +151,51 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return true;  // 保持消息通道开放
   }
 
+  if (message.type === 'CAPTURE_VISIBLE_TAB') {
+    console.log('收到截取当前标签页请求');
+
+    try {
+      // 获取当前标签页
+      chrome.tabs.query({ active: true, currentWindow: true }, async function (tabs) {
+        if (!tabs || !tabs[0]) {
+          sendResponse({ success: false, error: '无法获取当前标签页' });
+          return;
+        }
+
+        const tab = tabs[0];
+
+        try {
+          // 使用 Chrome API 截取当前标签页
+          const imageDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+          console.log('截取成功，图片数据长度:', imageDataUrl.length);
+
+          // 获取选区信息
+          const rect = message.rect;
+
+          if (!rect) {
+            sendResponse({ success: false, error: '缺少选区信息' });
+            return;
+          }
+
+          // 裁剪图片
+          const croppedImageData = await cropImage(imageDataUrl, rect);
+          console.log('裁剪成功，裁剪后图片数据长度:', croppedImageData.length);
+
+          // 返回裁剪后的图片数据
+          sendResponse({ success: true, imageData: croppedImageData });
+        } catch (error) {
+          console.error('截图失败:', error);
+          sendResponse({ success: false, error: error.message || '截图失败' });
+        }
+      });
+    } catch (error) {
+      console.error('处理 CAPTURE_VISIBLE_TAB 消息失败:', error);
+      sendResponse({ success: false, error: error.message || '截图失败' });
+    }
+
+    return true;  // 保持消息通道开放
+  }
+
   // 返回 true 表示我们会异步发送响应
   return true;
 });
@@ -512,6 +557,50 @@ async function reopenPopup() {
     console.error('打开popup失败:', error);
     showErrorNotification('无法打开预览窗口');
   }
+}
+
+// 裁剪图片
+async function cropImage(imageDataUrl, rect) {
+  return new Promise((resolve, reject) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          // 创建 Canvas 元素
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // 设置 Canvas 尺寸为选区大小
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+
+          // 绘制裁剪后的图片
+          ctx.drawImage(
+            img,
+            rect.left, rect.top, rect.width, rect.height,  // 源图片中的选区
+            0, 0, rect.width, rect.height  // 目标 Canvas 中的位置和尺寸
+          );
+
+          // 转换为 Data URL
+          const croppedImageData = canvas.toDataURL('image/png');
+          resolve(croppedImageData);
+        } catch (error) {
+          console.error('裁剪图片失败:', error);
+          reject(error);
+        }
+      };
+
+      img.onerror = (error) => {
+        console.error('加载图片失败:', error);
+        reject(new Error('加载图片失败'));
+      };
+
+      img.src = imageDataUrl;
+    } catch (error) {
+      console.error('创建图片元素失败:', error);
+      reject(error);
+    }
+  });
 }
 
 // 监听窗口关闭事件

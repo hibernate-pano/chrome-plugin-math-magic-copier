@@ -382,10 +382,9 @@ async function compressImage(base64Data) {
   });
 }
 
-// 捕获选中区域
+// 捕获选中区域 - 重构版本
 async function captureArea(selectionRect) {
   let loadingUI = null;
-  let tempContainer = null;
 
   try {
     console.log('开始截图，选区信息:', selectionRect);
@@ -416,83 +415,32 @@ async function captureArea(selectionRect) {
     loadingUI.textContent = '正在截图...';
     document.body.appendChild(loadingUI);
 
-    // 考虑页面滚动位置
-    const scrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft;
-    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
-
-    console.log('页面滚动位置:', { scrollX, scrollY });
-
-    // 将视口坐标转换为文档坐标
-    const absoluteLeft = left + scrollX;
-    const absoluteTop = top + scrollY;
-
-    console.log('绝对坐标:', { absoluteLeft, absoluteTop, width, height });
-
-    // 创建临时容器，用于精确截取选区
-    tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '0';
-    tempContainer.style.top = '0';
-    tempContainer.style.width = '100%';
-    tempContainer.style.height = '100%';
-    tempContainer.style.overflow = 'hidden';
-    tempContainer.style.zIndex = '-1';
-    tempContainer.style.opacity = '0';
-    tempContainer.style.pointerEvents = 'none';
-    document.body.appendChild(tempContainer);
-
-    // 克隆选区内容
-    const clonedContent = document.createElement('div');
-    clonedContent.style.position = 'absolute';
-    clonedContent.style.left = '0';
-    clonedContent.style.top = '0';
-    clonedContent.style.width = width + 'px';
-    clonedContent.style.height = height + 'px';
-    clonedContent.style.overflow = 'hidden';
-    clonedContent.style.backgroundColor = '#ffffff';
-    tempContainer.appendChild(clonedContent);
-
     // 等待一下，确保 UI 已经隐藏
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // 使用 html2canvas 截取选区
-    console.log('执行 html2canvas 截图');
+    // 使用 Chrome 扩展的 captureVisibleTab API 捕获当前标签页
+    console.log('使用 chrome.tabs.captureVisibleTab 截取当前标签页');
 
-    // 设置截图选项
-    const options = {
-      logging: true,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      scale: 2,
-      // 直接截取选区，不需要指定 x, y
-      windowWidth: document.documentElement.offsetWidth,
-      windowHeight: document.documentElement.offsetHeight
-    };
-
-    // 执行截图 - 直接截取选区
-    const canvas = await html2canvas(document.documentElement, {
-      ...options,
-      x: absoluteLeft,
-      y: absoluteTop,
-      width: width,
-      height: height
+    // 发送消息给 background 脚本，请求截取当前标签页
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: 'CAPTURE_VISIBLE_TAB',
+        rect: selectionRect
+      }, (response) => {
+        resolve(response);
+      });
     });
 
-    console.log('截图完成，获取图片数据');
+    if (!response || !response.success) {
+      throw new Error(response?.error || '截图失败');
+    }
 
-    // 处理截图结果
-    const imageData = canvas.toDataURL('image/png', 1.0);
-    console.log('图片数据长度:', imageData.length);
-
-    // 压缩图片
-    const compressedImage = await compressImage(imageData);
-    console.log('压缩后图片数据长度:', compressedImage.length);
+    console.log('截图成功，获取图片数据');
 
     // 发送截图数据
     chrome.runtime.sendMessage({
       type: 'CAPTURE_COMPLETE',
-      imageData: compressedImage
+      imageData: response.imageData
     });
 
     console.log('截图数据已发送到 background');
@@ -512,7 +460,6 @@ async function captureArea(selectionRect) {
     if (selection) selection.style.display = 'block';
 
     if (loadingUI) loadingUI.remove();
-    if (tempContainer) tempContainer.remove();
   }
 }
 
