@@ -219,6 +219,8 @@ fileInput.addEventListener("change", (e) => {
 
 // 处理图片文件的函数
 function handleImageFile(file) {
+  console.log('处理图片文件:', file.name, file.type, file.size);
+
   // 验证文件类型
   if (!file.type.startsWith("image/")) {
     showStatus("请选择图片文件");
@@ -233,6 +235,7 @@ function handleImageFile(file) {
     try {
       // 保存完整的 data URL
       const base64Data = e.target.result;
+      console.log('文件读取成功, 数据长度:', base64Data.length);
 
       if (isSVG) {
         console.log("处理 SVG 文件，将转换为 PNG 格式");
@@ -285,7 +288,8 @@ function handleImageFile(file) {
       showStatus("处理图片失败: " + error.message);
     }
   };
-  reader.onerror = () => {
+  reader.onerror = (error) => {
+    console.error('读取文件失败:', error);
     showStatus("读取文件失败");
   };
 
@@ -294,6 +298,7 @@ function handleImageFile(file) {
 
 // 显示预览图片
 function showPreviewImage(src) {
+  console.log('显示预览图片:', src.substring(0, 50) + '...');
   previewImage.src = src;
   previewImage.style.display = "block";
   imagePreview.querySelector(".placeholder").style.display = "none";
@@ -304,9 +309,11 @@ function showPreviewImage(src) {
 // 清除图片
 clearButton.addEventListener("click", (e) => {
   e.stopPropagation(); // 阻止事件冒泡
+  console.log('清除图片');
   previewImage.src = "";
   previewImage.style.display = "none";
-  imagePreview.querySelector(".placeholder").style.display = "flex";
+  const placeholder = imagePreview.querySelector(".placeholder");
+  placeholder.style.display = "flex";
   clearButton.style.display = "none";
   currentImageData = null;
   disableAnalyzeButton();
@@ -505,6 +512,7 @@ historyBtn.addEventListener('click', async () => {
 
         // 点击历史记录项加载到当前界面
         li.addEventListener('click', () => {
+          console.log('点击历史记录项:', item.timestamp);
           currentImageData = item.imageData;
           currentLatex = item.latex || '';
 
