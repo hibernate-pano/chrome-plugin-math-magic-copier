@@ -382,13 +382,14 @@ async function compressImage(base64Data) {
   });
 }
 
-// 捕获选中区域 - 完全重构版本
+// 捕获选中区域 - 基于之前可用版本重新实现
 async function captureArea(selectionRect) {
   let loadingUI = null;
+  let tempContainer = null;
 
   try {
     console.log('开始截图，选区信息:', selectionRect);
-    let { width, height, left, top } = selectionRect;
+    const { width, height, left, top } = selectionRect;
 
     // 验证选区大小
     if (width < 10 || height < 10) {
@@ -399,6 +400,70 @@ async function captureArea(selectionRect) {
     if (overlay) overlay.style.display = 'none';
     if (toolbar) toolbar.style.display = 'none';
     if (selection) selection.style.display = 'none';
+
+    // 创建临时容器
+    tempContainer = document.createElement('div');
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.left = `${left}px`;
+    tempContainer.style.top = `${top}px`;
+    tempContainer.style.width = `${width}px`;
+    tempContainer.style.height = `${height}px`;
+    tempContainer.style.backgroundColor = '#ffffff';
+    tempContainer.style.zIndex = '-1';
+
+    // 获取选区中心的元素
+    const centerX = left + width / 2;
+    const centerY = top + height / 2;
+    const targetElement = document.elementFromPoint(centerX, centerY);
+
+    if (!targetElement) {
+      throw new Error('无法找到目标元素');
+    }
+
+    // 向上查找数学公式容器
+    let mathContainer = targetElement;
+    while (mathContainer &&
+      !mathContainer.classList.contains('katex') &&
+      !mathContainer.classList.contains('MathJax') &&
+      !mathContainer.querySelector('.katex, .MathJax')) {
+      mathContainer = mathContainer.parentElement;
+      if (mathContainer === document.body) {
+        mathContainer = targetElement;
+        break;
+      }
+    }
+
+    // 克隆数学公式容器
+    const clonedContent = mathContainer.cloneNode(true);
+
+    // 获取原始元素的位置和样式
+    const originalRect = mathContainer.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(mathContainer);
+
+    // 设置克隆元素的样式
+    clonedContent.style.position = 'absolute';
+    clonedContent.style.left = `${originalRect.left - left}px`;
+    clonedContent.style.top = `${originalRect.top - top}px`;
+    clonedContent.style.width = `${originalRect.width}px`;
+    clonedContent.style.height = `${originalRect.height}px`;
+    clonedContent.style.margin = '0';
+    clonedContent.style.padding = computedStyle.padding;
+    clonedContent.style.display = computedStyle.display;
+    clonedContent.style.transform = 'none';
+    clonedContent.style.backgroundColor = '#ffffff';
+
+    // 处理所有数学公式元素
+    const mathElements = clonedContent.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
+    mathElements.forEach(el => {
+      el.style.display = 'inline-block';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.style.position = 'static';
+      el.style.transform = 'none';
+    });
+
+    tempContainer.appendChild(clonedContent);
+    document.body.appendChild(tempContainer);
 
     // 创建加载UI
     loadingUI = document.createElement('div');
@@ -415,55 +480,36 @@ async function captureArea(selectionRect) {
     loadingUI.textContent = '正在截图...';
     document.body.appendChild(loadingUI);
 
-    // 等待一下，确保 UI 已经隐藏
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // 等待数学公式重新渲染
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    // 创建一个临时元素来定位选区
-    const targetElement = document.createElement('div');
-    targetElement.style.position = 'absolute';
-    targetElement.style.left = left + 'px';
-    targetElement.style.top = top + 'px';
-    targetElement.style.width = width + 'px';
-    targetElement.style.height = height + 'px';
-    targetElement.style.zIndex = '-1';
-    targetElement.style.pointerEvents = 'none';
-    targetElement.style.backgroundColor = 'transparent';
-    document.body.appendChild(targetElement);
-
-    console.log('直接使用 html2canvas 截取选区');
-
-    // 考虑设备像素比
-    const pixelRatio = window.devicePixelRatio || 1;
-
-    // 使用 html2canvas 直接截取选区
-    const canvas = await html2canvas(targetElement, {
-      backgroundColor: null,
-      scale: pixelRatio,
+    // 执行截图
+    const options = {
       logging: true,
       useCORS: true,
       allowTaint: true,
-      ignoreElements: (element) => {
-        // 忽略我们的UI元素
-        return element === overlay ||
-          element === toolbar ||
-          element === selection ||
-          element === loadingUI ||
-          element === targetElement;
+      backgroundColor: '#ffffff',
+      scale: 2,
+      width: width,
+      height: height,
+      onclone: (clonedDoc) => {
+        const clonedMathElements = clonedDoc.querySelectorAll('.katex, .MathJax, .MathJax_Preview, .MathJax_SVG, .MathJax_CHTML');
+        clonedMathElements.forEach(el => {
+          el.style.display = 'inline-block';
+          el.style.visibility = 'visible';
+          el.style.opacity = '1';
+          el.style.position = 'static';
+          el.style.transform = 'none';
+        });
       }
-    });
+    };
 
-    // 移除临时元素
-    targetElement.remove();
+    const canvas = await html2canvas(tempContainer, options);
 
-    // 转换为数据 URL
-    const imageData = canvas.toDataURL('image/png');
-    console.log('截图成功，图片数据长度:', imageData.length);
-
-    // 压缩图片
+    // 处理截图结果
+    const imageData = canvas.toDataURL('image/png', 1.0);
     const compressedImage = await compressImage(imageData);
-    console.log('压缩后图片数据长度:', compressedImage.length);
 
-    // 发送截图数据
     chrome.runtime.sendMessage({
       type: 'CAPTURE_COMPLETE',
       imageData: compressedImage
@@ -486,6 +532,7 @@ async function captureArea(selectionRect) {
     if (selection) selection.style.display = 'block';
 
     if (loadingUI) loadingUI.remove();
+    if (tempContainer) tempContainer.remove();
   }
 }
 
